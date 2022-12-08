@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    'crates/skw-mpc-protocol',
+    'crates/skw-round-based',
+]
+
+exclude = [
+    
+]
+[profile.release]
+panic = 'unwind'
