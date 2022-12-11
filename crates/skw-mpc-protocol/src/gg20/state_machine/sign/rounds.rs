@@ -140,7 +140,7 @@ impl Round1 {
         let mut m_b_w_vec = Vec::new();
         let mut ni_vec = Vec::new();
 
-        let ttag = self.s_l.len();
+        let ttag = self.s_l.len(); // num of people partficipating 
         let l_s: Vec<_> = self
             .s_l
             .iter()

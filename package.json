@@ -7,6 +7,8 @@
     "setup-rust": "node ./scripts/setup-rust.cjs",
     "main:build": "node ./scripts/main-build.cjs",
     "main:ci": "node ./scripts/main-ci.cjs",
-    "main:test": "node ./scripts/main-test.cjs"
+    "main:test": "node ./scripts/main-test.cjs",
+    "copy:examples": "node ./scripts/copy-examples.cjs"
+
   }
 }

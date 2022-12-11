@@ -1,0 +1,18 @@
+[package]
+name = "skw-mpc-node"
+version = "0.1.7"
+edition = "2021"
+authors = ["Song Zhou <song.zhou@skye.kiwi>"]
+license = "GPL-3.0"
+description = "Mpc node implmenetation"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+libp2p = { version = "0.50.0", features = ["gossipsub", "identify", "mdns", "macros", "tcp", "dns", "websocket", "noise", "mplex", "yamux", "async-std"]}
+futures = "0.3.1"
+async-std = { version = "1.6.2", features = ["attributes"] }
