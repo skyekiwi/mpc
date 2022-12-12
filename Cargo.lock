@@ -4876,15 +4876,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "skw-mpc-node"
-version = "0.1.7"
-dependencies = [
- "async-std",
- "futures 0.3.25",
- "libp2p",
-]
-
-[[package]]
 name = "skw-mpc-protocol"
 version = "0.8.1"
 dependencies = [
@@ -4915,6 +4906,15 @@ dependencies = [
  "uuid 0.8.2",
  "zeroize",
  "zk-paillier",
+]
+
+[[package]]
+name = "skw-mpc-pubsub"
+version = "0.1.7"
+dependencies = [
+ "async-std",
+ "futures 0.3.25",
+ "libp2p",
 ]
 
 [[package]]

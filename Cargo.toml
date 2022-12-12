@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    'crates/skw-mpc-node',
     'crates/skw-mpc-protocol',
+    'crates/skw-mpc-pubsub',
     'crates/skw-round-based',
 ]
 
