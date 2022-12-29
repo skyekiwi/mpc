@@ -103,6 +103,7 @@ impl Room {
 
     pub async fn publish(self: &Arc<Self>, message: String) {
         let mut messages = self.messages.write().await;
+		println!("{}", message);
         messages.push(message);
         self.message_appeared.notify_waiters();
     }

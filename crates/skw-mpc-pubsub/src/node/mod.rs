@@ -4,6 +4,7 @@ use libp2p::gossipsub::MessageId;
 use libp2p::gossipsub::{
     Gossipsub, GossipsubEvent, GossipsubMessage, IdentTopic as Topic, MessageAuthenticity,
     ValidationMode,
+	TopicHash
 };
 use libp2p::swarm::keep_alive;
 use libp2p::{
@@ -15,20 +16,20 @@ use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 #[derive(NetworkBehaviour)]
-struct MpcPubsubBahavior {
-    gossipsub: Gossipsub,
-    mdns: mdns::async_io::Behaviour,
-    keep_alive: keep_alive::Behaviour,
+pub struct MpcPubsubBahavior {
+    pub gossipsub: Gossipsub,
+    pub mdns: mdns::async_io::Behaviour,
+    pub keep_alive: keep_alive::Behaviour,
 }
 
 pub struct MpcPubsub {
-    local_key: identity::Keypair,
-    swarm: Swarm<MpcPubsubBahavior>,
+    pub local_key: identity::Keypair,
+    pub swarm: Swarm<MpcPubsubBahavior>,
 }
 
 impl MpcPubsub {
 
-    pub async fn new(topic: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn new() -> Result<Self, Box<dyn Error>> {
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
         println!("Local peer id: {local_peer_id}");
@@ -49,10 +50,10 @@ impl MpcPubsub {
             .build()
             .expect("Valid config");
 
-        let topic = Topic::new(topic);
+        // let topic = Topic::new(topic);
         let mut gossipsub = Gossipsub::new(MessageAuthenticity::Signed(local_key.clone()), gossipsub_config)
             .expect("Correct configuration");
-        gossipsub.subscribe(&topic)?;
+        // gossipsub.subscribe(&topic)?;
 
         let mut swarm = {
             let mdns = mdns::async_io::Behaviour::new(mdns::Config::default())?;
@@ -66,19 +67,20 @@ impl MpcPubsub {
         })
     }
 
-    pub async fn start(&mut self, topic: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn start<F>(&mut self, callback: F ) -> Result<(), Box<dyn Error>> where
+	F: Fn(TopicHash, &str) {
         let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
         self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-        let topic = Topic::new(topic);
+        // let topic = Topic::new(topic);
 
         loop {
             select! {
                 line = stdin.select_next_some() => {
-                    if let Err(e) = self.swarm
-                        .behaviour_mut().gossipsub
-                        .publish(topic.clone(), line.expect("Stdin not to close").as_bytes()) {
-                        println!("Publish error: {e:?}");
-                    }
+                    // if let Err(e) = self.swarm
+                    //     .behaviour_mut().gossipsub
+                    //     .publish(topic.clone(), line.expect("Stdin not to close").as_bytes()) {
+                    //     println!("Publish error: {e:?}");
+                    // }
                 },
                 event = self.swarm.select_next_some() => match event {
                     SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Discovered(list))) => {
@@ -101,21 +103,18 @@ impl MpcPubsub {
                         propagation_source: peer_id,
                         message_id: id,
                         message,
-                    })) => println!(
+                    })) => {
+						let message_data = String::from_utf8(message.data).unwrap();
+						println!(
                             "Got message: '{}' with id: {id} from peer: {peer_id}",
-                            String::from_utf8_lossy(&message.data),
-                        ),
+                            &message_data
+                        );
+						callback(message.topic, message_data.as_str());
+					},
                     _ => {}
                 }
             }
         }
     }
 
-}
-
-#[async_std::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let mut node = MpcPubsub::new("test").await?;
-    node.start("test").await?;
-    Ok(())
 }

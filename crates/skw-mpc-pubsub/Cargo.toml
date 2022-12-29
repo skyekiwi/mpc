@@ -16,3 +16,23 @@ rustdoc-args = ["--cfg", "docsrs"]
 libp2p = { version = "0.50.0", features = ["gossipsub", "identify", "mdns", "macros", "tcp", "dns", "websocket", "noise", "mplex", "yamux", "async-std"]}
 futures = "0.3.1"
 async-std = { version = "1.6.2", features = ["attributes"] }
+serde = "1.0.151"
+serde_derive = "1.0.151"
+
+[dev-dependencies]
+criterion = "0.3"
+aes-gcm = "0.9.4"
+hex = "0.4"
+tokio = { version = "1", default-features = false, features = ["macros"] }
+futures = "0.3"
+rocket = { version = "0.5.0-rc.1", default-features = false, features = ["json"] }
+reqwest = { version = "0.9", default-features = false }
+uuid = { version = "0.8", features = ["v4"] }
+serde_json = "1.0"
+rand = "0.8"
+surf = "2"
+async-sse = "5"
+anyhow = "1"
+structopt = "0.3"
+secp256k1 = { version = "0.20", features = ["global-context"]}
+skw-round-based = { path = "../skw-round-based", features = ["dev"]}

@@ -1,0 +1,333 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'gg20_keygen'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=gg20_keygen",
+                    "--package=skw-mpc-protocol",
+                ],
+                "filter": {
+                    "name": "gg20_keygen",
+                    "kind": "example"
+                }
+            },
+            "args": [
+              "--threshold",
+              "1",
+              "--number-of-parties",
+              "3",
+              "--index",
+              "3",
+              "--output",
+              "local-share3.json"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'gg20_keygen'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=gg20_keygen",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_keygen",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'gg20_signing'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=gg20_signing",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_signing",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'gg20_signing'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=gg20_signing",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_signing",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'gg20_sm_client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=gg20_sm_client",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_sm_client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'gg20_sm_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=gg20_sm_client",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_sm_client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'gg20_sm_manager'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=gg20_sm_manager",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_sm_manager",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'gg20_sm_manager'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=gg20_sm_manager",
+                    "--package=skw-mpc-protocol"
+                ],
+                "filter": {
+                    "name": "gg20_sm_manager",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'skw-round-based'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=skw-round-based"
+                ],
+                "filter": {
+                    "name": "skw-round-based",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'simulate_silly_protocol'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=simulate_silly_protocol",
+                    "--package=skw-round-based"
+                ],
+                "filter": {
+                    "name": "simulate_silly_protocol",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'skw-mpc-pubsub'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=skw-mpc-pubsub",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "skw-mpc-pubsub",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'skw-mpc-pubsub'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=skw-mpc-pubsub",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "skw-mpc-pubsub",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=client",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=client",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=server",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'server'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=server",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test",
+                    "--package=skw-mpc-pubsub"
+                ],
+                "filter": {
+                    "name": "test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
