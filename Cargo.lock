@@ -4912,6 +4912,7 @@ dependencies = [
  "anyhow",
  "async-sse",
  "async-std",
+ "async-stream",
  "criterion",
  "futures 0.3.25",
  "hex",

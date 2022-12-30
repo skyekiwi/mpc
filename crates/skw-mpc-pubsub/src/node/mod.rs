@@ -1,19 +1,18 @@
-use async_std::io;
-use futures::{prelude::*, select};
 use libp2p::gossipsub::MessageId;
 use libp2p::gossipsub::{
     Gossipsub, GossipsubEvent, GossipsubMessage, IdentTopic as Topic, MessageAuthenticity,
     ValidationMode,
-	TopicHash
 };
 use libp2p::swarm::keep_alive;
 use libp2p::{
     gossipsub, identity, mdns, swarm::NetworkBehaviour, swarm::SwarmEvent, PeerId, Swarm,
 };
+
 use std::collections::hash_map::DefaultHasher;
-use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
+use anyhow::{Result};
+use futures::{Sink, Stream, StreamExt, future, stream_select, stream};
 
 #[derive(NetworkBehaviour)]
 pub struct MpcPubsubBahavior {
@@ -22,14 +21,10 @@ pub struct MpcPubsubBahavior {
     pub keep_alive: keep_alive::Behaviour,
 }
 
-pub struct MpcPubsub {
-    pub local_key: identity::Keypair,
-    pub swarm: Swarm<MpcPubsubBahavior>,
-}
-
+pub struct MpcPubsub {}
 impl MpcPubsub {
 
-    pub async fn new() -> Result<Self, Box<dyn Error>> {
+    pub async fn new_node() -> Result<Swarm<MpcPubsubBahavior>> {
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
         println!("Local peer id: {local_peer_id}");
@@ -51,70 +46,78 @@ impl MpcPubsub {
             .expect("Valid config");
 
         // let topic = Topic::new(topic);
-        let mut gossipsub = Gossipsub::new(MessageAuthenticity::Signed(local_key.clone()), gossipsub_config)
+        let gossipsub = Gossipsub::new(MessageAuthenticity::Signed(local_key.clone()), gossipsub_config)
             .expect("Correct configuration");
         // gossipsub.subscribe(&topic)?;
 
-        let mut swarm = {
+        let swarm = {
             let mdns = mdns::async_io::Behaviour::new(mdns::Config::default())?;
             let behaviour = MpcPubsubBahavior { gossipsub, mdns, keep_alive: keep_alive::Behaviour::default() };
             Swarm::with_async_std_executor(transport, behaviour, local_peer_id)
         };
 
-        Ok(Self {
-            local_key,
-            swarm
-        })
+        Ok(swarm)
     }
 
-    pub async fn start<F>(&mut self, callback: F ) -> Result<(), Box<dyn Error>> where
-	F: Fn(TopicHash, &str) {
-        let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
-        self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-        // let topic = Topic::new(topic);
+    pub fn start<'node> (node: &'node mut Swarm<MpcPubsubBahavior>) -> Result<()> {
+        node.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+        Ok(())
+    }
 
-        loop {
-            select! {
-                line = stdin.select_next_some() => {
-                    // if let Err(e) = self.swarm
-                    //     .behaviour_mut().gossipsub
-                    //     .publish(topic.clone(), line.expect("Stdin not to close").as_bytes()) {
-                    //     println!("Publish error: {e:?}");
-                    // }
-                },
-                event = self.swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Discovered(list))) => {
-                        for (peer_id, _multiaddr) in list {
-                            println!("mDNS discovered a new peer: {peer_id}");
-                            self.swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+    pub fn incoming<'node> (node: &'node mut Swarm<MpcPubsubBahavior>, topic: &'node str) -> Result<
+        impl Stream<Item = Option<Vec<u8>> > + 'node, //incoming
+    > {
+        node
+            .behaviour_mut()
+            .gossipsub
+            .subscribe(&Topic::new(topic))?;
 
-                            for peer in self.swarm.behaviour().gossipsub.all_peers() {
-                                println!("Peers {:?}", peer);
+        let incoming = async_stream::stream!{
+            loop {
+                tokio::select! {
+                    event = node.select_next_some() => {
+                        match event {
+                            SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Discovered(list))) => {
+                                println!("Connected {:?}", list);
+                                yield None
+                            },
+                            SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Expired(list))) => {
+                                println!("Left {:?}", list);
+        
+                                yield None
+                            },
+                            SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Gossipsub(GossipsubEvent::Message {
+                                propagation_source: peer_id,
+                                message_id: id,
+                                message,
+                            })) => {
+                                println!("Got message From {:?}, with ID {:?}", peer_id, id);
+                                yield Some(message.data.clone())
+                            },
+                            _ => {
+                                yield None
                             }
                         }
-                    },
-                    SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Expired(list))) => {
-                        for (peer_id, _multiaddr) in list {
-                            println!("mDNS discover peer has expired: {peer_id}");
-                            self.swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
-                        }
-                    },
-                    SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Gossipsub(GossipsubEvent::Message {
-                        propagation_source: peer_id,
-                        message_id: id,
-                        message,
-                    })) => {
-						let message_data = String::from_utf8(message.data).unwrap();
-						println!(
-                            "Got message: '{}' with id: {id} from peer: {peer_id}",
-                            &message_data
-                        );
-						callback(message.topic, message_data.as_str());
-					},
-                    _ => {}
+                    }
                 }
             }
-        }
+        };
+
+        Ok(incoming)
+    }
+
+    pub fn outgoing<'node>(node: &'node mut Swarm<MpcPubsubBahavior>, topic: &'node str) -> Result<
+        impl Sink<Vec<u8>, Error = anyhow::Error> + 'node, // outgoing
+    > {
+        let outgoing = futures::sink::unfold(
+            node, move |n, message: Vec<u8> | async move {
+            n
+                .behaviour_mut().gossipsub
+                .publish(Topic::new(topic.to_owned()), message)?;
+            Ok::<_, anyhow::Error>(n)
+        });
+
+        Ok(outgoing)
     }
 
 }
