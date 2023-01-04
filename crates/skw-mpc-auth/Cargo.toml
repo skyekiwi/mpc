@@ -1,0 +1,17 @@
+[package]
+name = "skw-mpc-auth"
+version = "0.1.7"
+edition = "2021"
+authors = ["SkyeKiwi <hello@skye.kiwi>"]
+license = "GPL-3.0"
+description = "generic auth schema used by SkyeKiwi Mpc"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+base32 = "0.4.0"
+hmac-sha1 = "0.1.3"
