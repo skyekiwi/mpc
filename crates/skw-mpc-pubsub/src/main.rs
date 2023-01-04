@@ -1,9 +1,9 @@
-use futures::{AsyncBufReadExt, StreamExt, SinkExt};
+use futures::{StreamExt, SinkExt};
 use skw_mpc_pubsub::node::MpcPubsub;
 use anyhow::Result;
-use async_std::io;
 
-#[async_std::main]
+use tokio::io::{BufReader, stdin, AsyncBufReadExt};
+#[tokio::main]
 async fn main() -> Result<()> {
     let mut node = MpcPubsub::new().await?;
 
@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     tokio::pin!(incoming);
     tokio::pin!(outgoing);
 
-    let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+    let mut stdin = BufReader::new(stdin()).lines();
     loop {
         tokio::select! {
             received = incoming.next() => {
@@ -21,8 +21,8 @@ async fn main() -> Result<()> {
                     eprintln!("Received {:?}", msg);
                 }
             },
-            line = stdin.select_next_some() => {
-                outgoing.send(line.expect("Stdin not to close").as_bytes().to_vec()).await?;
+            line = stdin.next_line() => {
+                outgoing.send(line.expect("Stdin not to close").unwrap().as_bytes().to_vec()).await?;
             },
         }
     }

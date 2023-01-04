@@ -12,6 +12,7 @@ use tokio::sync::Notify;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
+
 use anyhow::{Result};
 use futures::{Sink, Stream, StreamExt};
 use std::{cell::RefCell, rc::Rc};
@@ -28,8 +29,8 @@ pub struct MpcPubsub {
 
     notifier: Notify,
 }
-impl MpcPubsub {
 
+impl MpcPubsub {
     pub async fn new() -> Result<Self> {
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
