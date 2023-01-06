@@ -1,8 +1,10 @@
 [workspace]
 members = [
     'crates/skw-mpc-auth',
+    'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
     'crates/skw-mpc-pubsub',
+    'crates/skw-mpc-storage',
     'crates/skw-round-based',
 ]
 

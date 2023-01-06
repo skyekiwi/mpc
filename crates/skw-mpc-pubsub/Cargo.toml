@@ -13,6 +13,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+getrandom = { version = "0.2", default-features = false, features = ["js"] }
 libp2p = { version = "0.50.0", features = ["gossipsub", "identify", "mdns", "macros", "tcp", "dns", "websocket", "noise", "mplex", "yamux", "async-std"]}
 futures = "0.3.1"
 anyhow = "1"

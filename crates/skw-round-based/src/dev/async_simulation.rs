@@ -28,8 +28,8 @@ use crate::{Msg, StateMachine};
 ///
 /// ## Example
 /// ```no_run
-/// # use round_based::StateMachine;
-/// # use round_based::dev::{AsyncSimulation, AsyncSimulationError};
+/// # use skw_round_based::StateMachine;
+/// # use skw_round_based::dev::{AsyncSimulation, AsyncSimulationError};
 /// # trait Builder { fn new(party_i: u16, party_n: u16) -> Self; }
 /// # async fn async_simulation<Party>()
 /// # where Party: StateMachine + Builder + Send + 'static,

@@ -26,8 +26,8 @@ pub use benchmark::{BenchmarkResults, Measurements};
 ///
 /// ## Example
 /// ```no_run
-/// # use round_based::StateMachine;
-/// # use round_based::dev::Simulation;
+/// # use skw_round_based::StateMachine;
+/// # use skw_round_based::dev::Simulation;
 /// # trait Builder { fn new(party_i: u16, party_n: u16) -> Self; }
 /// # fn is_valid<T>(_: &T) -> bool { true }
 /// # fn _test<Party: StateMachine + Builder>() -> Result<(), Party::Err>

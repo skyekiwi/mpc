@@ -1,10 +1,10 @@
 [package]
-name = "skw-mpc-auth"
+name = "skw-mpc-storage"
 version = "0.1.7"
 edition = "2021"
 authors = ["SkyeKiwi <hello@skye.kiwi>"]
 license = "GPL-3.0"
-description = "generic auth schema used by SkyeKiwi Mpc"
+description = "storage abstraction for SkyeKiwi Mpc nodes"
 categories = ["asynchronous", "cryptography", "network-programming"]
 keywords = ["round-based", "mpc", "protocol"]
 
@@ -13,10 +13,4 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-base32 = "0.4.0"
-hmac-sha1 = "0.1.3"
-serde = { version = "1.0", features = ["derive"] }
-blake2 = { version = "0.10.6", default-features = false }
-
-[dev-dependencies]
-rand = "0.8.5"
+rusty-leveldb = { version = "1.0.4", default-features = false }

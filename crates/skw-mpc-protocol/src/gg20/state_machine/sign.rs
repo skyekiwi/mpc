@@ -600,7 +600,7 @@ impl IsCritical for Error {
 ///
 /// ## Example
 /// ```no_run
-/// # use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2020::{
+/// # use skw_mpc_protocol::gg20::{
 /// #     state_machine::sign::{CompletedOfflineStage, SignManual, PartialSignature},
 /// #     party_i::{LocalSignature, verify},
 /// # };

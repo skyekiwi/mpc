@@ -16,10 +16,14 @@ jobs:
         with:
           submodules: true
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+
       - name: Set-Up
         run: 
           sudo apt install -y cmake pkg-config libssl-dev git build-essential clang libclang-dev curl
-
 
       - name: Install Rustup
         run: |
