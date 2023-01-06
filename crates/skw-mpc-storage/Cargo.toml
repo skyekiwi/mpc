@@ -13,4 +13,4 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-rusty-leveldb = { version = "1.0.4" }
+rusty-leveldb = { version = "1.0.4", default-features = false }
