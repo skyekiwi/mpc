@@ -3,7 +3,7 @@ use crate::types::{SECRET_LEN, CODE_LEN};
 
 use crate::auth::BaseAuth;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthCode {
 
     secret_key: [u8; SECRET_LEN],
