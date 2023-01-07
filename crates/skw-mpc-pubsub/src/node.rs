@@ -1,19 +1,21 @@
-use libp2p::floodsub::Floodsub;
-use libp2p::swarm::keep_alive;
 use libp2p::{
-    floodsub, identity, mdns, swarm::NetworkBehaviour, swarm::SwarmEvent, PeerId, Swarm,
+    identity, mdns, mplex, noise,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, PeerId, Transport,
+    floodsub::{Floodsub, Topic, FloodsubEvent},
+    Swarm,
 };
-use tokio::sync::Notify;
+
+use async_notify::Notify;
 
 use anyhow::{Result};
-use futures::{Sink, Stream, StreamExt};
+use futures::{Sink, Stream, StreamExt, FutureExt};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(NetworkBehaviour)]
 pub struct MpcPubsubBahavior {
-    floodsub: floodsub::Floodsub,
+    floodsub: Floodsub,
     mdns: mdns::async_io::Behaviour,
-    keep_alive: keep_alive::Behaviour,
 }
 
 pub struct MpcPubsub {
@@ -28,14 +30,20 @@ impl MpcPubsub {
         let local_peer_id = PeerId::from(local_key.public());
         println!("Local peer id: {local_peer_id}");
 
-        let transport = libp2p::development_transport(local_key.clone()).await?;
+        let transport = tcp::async_io::Transport::new(tcp::Config::default().nodelay(true))
+            .upgrade(libp2p::core::upgrade::Version::V1)
+            .authenticate(
+                noise::NoiseAuthenticated::xx(&local_key)
+                    .expect("Signing libp2p-noise static DH keypair failed."),
+            )
+            .multiplex(mplex::MplexConfig::new())
+            .boxed();
 
         let swarm = {
             let mdns = mdns::async_io::Behaviour::new(mdns::Config::default())?;
             let behaviour = MpcPubsubBahavior { 
                 floodsub: Floodsub::new(local_peer_id),
                 mdns, 
-                keep_alive: keep_alive::Behaviour::default() 
             };
             Swarm::with_async_std_executor(transport, behaviour, local_peer_id)
         };
@@ -59,7 +67,7 @@ impl MpcPubsub {
     )> {
 
         let mut original_stream = self.node.borrow_mut();
-        original_stream.behaviour_mut().floodsub.subscribe(floodsub::Topic::new(topic));
+        original_stream.behaviour_mut().floodsub.subscribe(Topic::new(topic));
 
         let notifier = &self.notifier;
 
@@ -69,15 +77,15 @@ impl MpcPubsub {
             |v, message: Vec<u8> | {
                 eprintln!("New Message {:?}", message);
                 v.borrow_mut().push(message);
-                self.notifier.notify_waiters();
+                self.notifier.notify();
                 futures::future::ready(Ok(v))
             }
         );
 
         let incoming = async_stream::stream!{
             loop {
-                tokio::select! {
-                    event = original_stream.select_next_some() => {
+                futures::select! {
+                    event = original_stream.select_next_some().fuse() => {
                         match event {
                             SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Mdns(mdns::Event::Discovered(list))) => {
                                 for (peer_id, _multiaddr) in list {
@@ -96,7 +104,7 @@ impl MpcPubsub {
         
                                 yield None
                             },
-                            SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Floodsub(floodsub::FloodsubEvent::Message(message))) => {
+                            SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Floodsub(FloodsubEvent::Message(message))) => {
                                 yield Some(message.data.clone())
                             },
                             _ => {
@@ -104,14 +112,12 @@ impl MpcPubsub {
                             }
                         }
                     }
-                    _ = notifier.notified() => {
-                        // eprintln!("Sending Message {:?}", q.clone());
+                    _ = notifier.notified().fuse() => {
                         for msg in q.borrow().iter() {
-                            let res = original_stream
+                            original_stream
                                 .behaviour_mut()
                                 .floodsub
-                                .publish_any(floodsub::Topic::new("test"), msg.to_owned());
-                            eprintln!("Publishing Result: {:?}", res);
+                                .publish_any(Topic::new("test"), msg.to_owned());
                         }
 
                         *q.borrow_mut() = Vec::new();
@@ -122,22 +128,4 @@ impl MpcPubsub {
 
         Ok((incoming, outgoing))
     }
-
-    pub fn outgoing_sink(
-        &self,
-    ) -> Result<
-        impl Sink<Vec<u8>, Error = anyhow::Error> + '_, // outgoing
-    > {
-        let outgoing = futures::sink::unfold(
-            Vec::new(),
-            |mut v, message: Vec<u8> | {
-                v.push(message);
-                self.notifier.notify_waiters();
-                futures::future::ready(Ok(v))
-            }
-        );
-
-        Ok(outgoing)
-    }
-
 }
