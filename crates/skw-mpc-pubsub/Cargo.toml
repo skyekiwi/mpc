@@ -14,12 +14,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
-libp2p = { version = "0.50.0", features = ["floodsub", "identify", "mdns", "macros", "tcp", "noise", "mplex", "async-std"]}
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["floodsub", "identify", "mdns", "macros", "tcp", "noise", "mplex", "async-std", "yamux"]}
 futures = "0.3.1"
 anyhow = "1"
 
-async-notify = { version = "0.2.0" }
 async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes", "unstable", "std"] }
-async-stream = "0.3.3"
+void = { version = "*" }
 
 [dev-dependencies]
