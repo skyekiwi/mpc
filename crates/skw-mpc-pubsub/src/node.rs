@@ -5,7 +5,8 @@ use libp2p::{
     Swarm, InboundUpgradeExt, OutboundUpgradeExt, 
 };
 
-use anyhow::{Result};
+use serde::{Serialize, de::DeserializeOwned};
+
 use futures::{Sink, Stream, channel::mpsc};
 use crate::{
     behavior::MpcPubsubBahavior, 
@@ -14,12 +15,14 @@ use crate::{
     event_loop::MpcPubSubNodeEventLoop
 };
 
-pub async fn new_node() -> Result<(
+pub async fn new_node<M>() -> Result<(
     MpcPubSubClient,
-    MpcPubSubNodeEventLoop,
-    impl Stream<Item = Vec<u8> >, //incoming msg
-    impl Sink<Vec<u8>>, // outgoing msg
-), MpcPubSubError> {
+    MpcPubSubNodeEventLoop<M>,
+    impl Stream<Item = Result<M, anyhow::Error> >, //incoming msg
+    impl Sink<M>, // outgoing msg
+), MpcPubSubError> 
+    where M: Serialize + DeserializeOwned 
+{
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local peer id: {local_peer_id}");
@@ -60,8 +63,8 @@ pub async fn new_node() -> Result<(
         Swarm::with_async_std_executor(transport, behaviour, local_peer_id)
     };
 
-    let (in_sender, in_receiver) = mpsc::channel::<Vec<u8>>(0);
-    let (out_sender, out_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (in_sender, in_receiver) = mpsc::channel::<Result<M, anyhow::Error>>(0);
+    let (out_sender, out_receiver) = mpsc::channel::<M>(0);
 
     let (request_sender, request_receiver) = mpsc::channel::<MpcPubSubRequest>(0);
 

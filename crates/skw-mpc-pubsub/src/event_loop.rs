@@ -1,4 +1,5 @@
 use std::collections::{HashMap, hash_map::Entry};
+use serde::{Serialize, de::DeserializeOwned};
 
 use libp2p::{
     mdns, core::either::EitherError,
@@ -17,22 +18,24 @@ use crate::{
     error::MpcPubSubError
 };
 
-pub struct MpcPubSubNodeEventLoop {
+pub struct MpcPubSubNodeEventLoop<M> {
     node: Swarm<MpcPubsubBahavior>,
     request_receiver: mpsc::Receiver<MpcPubSubRequest>,
-    incoming_sender: mpsc::Sender<Vec<u8>>, //impl Stream<Item = Vec<u8> >, //incoming msg
-    outgoing_receiver: mpsc::Receiver<Vec<u8>>, //impl Sink<Vec<u8>>, // outgoing msg
+    incoming_sender: mpsc::Sender<Result<M, anyhow::Error>>, //impl Stream<Item = M >, //incoming msg
+    outgoing_receiver: mpsc::Receiver<M>, //impl Sink<M>, // outgoing msg
 
     // internal state
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcPubSubError>>>,
 }
 
-impl MpcPubSubNodeEventLoop {
+impl<M> MpcPubSubNodeEventLoop<M> 
+    where M: Serialize + DeserializeOwned
+{
     pub fn new(
         node: Swarm<MpcPubsubBahavior>,
         request_receiver: mpsc::Receiver<MpcPubSubRequest>,
-        incoming_sender: mpsc::Sender<Vec<u8>>, //impl Stream<Item = Vec<u8> >, //incoming msg
-        outgoing_receiver: mpsc::Receiver<Vec<u8>>, //impl Sink<Vec<u8>>, // outgoing msg
+        incoming_sender: mpsc::Sender<Result<M, anyhow::Error>>, //impl Stream<Item = M >, //incoming msg
+        outgoing_receiver: mpsc::Receiver<M>, //impl Sink<M>, // outgoing msg
     ) -> Self {
         Self {
             node, request_receiver, incoming_sender, outgoing_receiver,
@@ -102,25 +105,22 @@ impl MpcPubSubNodeEventLoop {
 
             // floodsub message
             SwarmEvent::Behaviour(MpcPubsubBahaviorEvent::Floodsub(FloodsubEvent::Message(message))) => {
-                match self.incoming_sender.send(message.data.clone()).await {
-                    Ok(o) => {
-                        eprintln!("{:?}", o);
-                    },
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                    }
-                };
+                self.incoming_sender.send(
+                    // TODO: correctly handle this
+                    Ok(bincode::deserialize::<M>(&message.data).unwrap())
+                    // message.data.clone()
+                ).await.map_err(|_| MpcPubSubError::FailToSendViaChannel);
             },
 
             _ => { }
         }
     }
 
-    async fn handle_outgoing(&mut self, topic: &str, msg: &[u8]) {
+    async fn handle_outgoing(&mut self, topic: &str, msg: &M) {
         self.node
             .behaviour_mut()
             .floodsub
-            .publish_any(Topic::new(topic), msg.to_vec());
+            .publish_any(Topic::new(topic), bincode::serialize(msg).unwrap());
     }
 
     async fn handle_request(&mut self, request: MpcPubSubRequest) -> Result<(), MpcPubSubError> {

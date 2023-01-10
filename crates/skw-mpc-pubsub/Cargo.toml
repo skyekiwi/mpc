@@ -13,12 +13,23 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+skw-mpc-storage = { path = "../skw-mpc-storage" }
+
+serde = { version = "1.0", features = ["derive"], default-features = false }
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["floodsub", "identify", "mdns", "macros", "tcp", "noise", "mplex", "async-std", "yamux"]}
 futures = "0.3.1"
 anyhow = "1"
+bincode = "1.3.3"
 
-async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes", "unstable", "std"] }
+
+async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes", "std"] }
 void = { version = "*" }
 
 [dev-dependencies]
+clap = { version = "3.1.16", features = ["derive"] }
+skw-mpc-protocol = { path = "../skw-mpc-protocol" }
+skw-round-based = { path = "../skw-round-based" }
+
+[[example]]
+name = "keygen"

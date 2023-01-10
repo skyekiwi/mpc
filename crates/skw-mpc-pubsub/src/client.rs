@@ -28,7 +28,6 @@ pub struct MpcPubSubClient {
 }
 
 impl MpcPubSubClient {
-
     /// Listen for incoming connections on the given address.
     pub async fn start_listening(
         &mut self,
