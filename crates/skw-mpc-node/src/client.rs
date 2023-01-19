@@ -2,42 +2,44 @@ use libp2p::{PeerId, Multiaddr};
 use futures::{SinkExt};
 use futures::channel::{mpsc, oneshot};
 
-use crate::error::MpcPubSubError;
+use crate::behavior::{MpcP2pRequest, MpcP2pResponse};
+use crate::error::MpcNodeError;
 
-pub enum MpcPubSubRequest {
+
+pub enum MpcNodeCommand {
+    // Command to node
     StartListening {
         addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcPubSubError>>,
+        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
     },
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcPubSubError>>,
+        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
     },
-    SubscribeToTopic {
-        topic: String,
-        result_sender: oneshot::Sender<Result<(), MpcPubSubError>>,
+    // CORE: Command to ReqRes P2p sub-protocol 
+    SendP2pRequest {
+        to: PeerId,
+        request: MpcP2pRequest,
+        result_sender: oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>,
     },
-
-    // Send Message should also be handled here 
-    // - but we do have a Sink for it ... so no need for now
 }
 
-pub struct MpcPubSubClient {
-    pub request_sender: mpsc::Sender<MpcPubSubRequest>
+pub struct MpcNodeClient {
+    pub command_sender: mpsc::Sender<MpcNodeCommand>
 }
 
-impl MpcPubSubClient {
+impl MpcNodeClient {
     /// Listen for incoming connections on the given address.
     pub async fn start_listening(
         &mut self,
         addr: Multiaddr,
-    ) -> Result<(), MpcPubSubError> {
+    ) -> Result<(), MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        self.request_sender
-            .send(MpcPubSubRequest::StartListening { addr, result_sender })
+        self.command_sender
+            .send(MpcNodeCommand::StartListening { addr, result_sender })
             .await
-            .expect("MpcPubSubRequest receiver not to be dropped.");
+            .expect("MpcPubSubCommand receiver not to be dropped.");
         result_receiver
             .await
             .expect("Sender not to be dropped.")
@@ -48,10 +50,10 @@ impl MpcPubSubClient {
         &mut self,
         peer_id: PeerId,
         peer_addr: Multiaddr,
-    ) -> Result<(), MpcPubSubError> {
+    ) -> Result<(), MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        self.request_sender
-            .send(MpcPubSubRequest::Dial {
+        self.command_sender
+            .send(MpcNodeCommand::Dial {
                 peer_id,
                 peer_addr,
                 result_sender,
@@ -61,16 +63,12 @@ impl MpcPubSubClient {
         result_receiver.await.expect("Sender not to be dropped.")
     }
 
-    pub async fn subscribe_to_topic(&mut self, topic: String) -> Result<(),  MpcPubSubError> {
+    pub async fn send_request(&mut self, to: PeerId, request: MpcP2pRequest) -> Result<MpcP2pResponse,  MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        self.request_sender
-            .send(MpcPubSubRequest::SubscribeToTopic {
-                topic,
-                result_sender,
-            })
+        self.command_sender
+            .send(MpcNodeCommand::SendP2pRequest { to, request, result_sender })
             .await
             .expect("Command receiver not to be dropped.");
         result_receiver.await.expect("Sender not to be dropped.")
     }
-
 }

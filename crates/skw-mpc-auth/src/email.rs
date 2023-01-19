@@ -46,7 +46,8 @@ impl EmailAuth {
     pub fn get_code(&self, t: Option<Timestamp>) -> Result<AuthCode, MpcAuthError> {
         let secret = self.get_secret();
 
-        let time = t.unwrap_or(0);
+        // TODO: better handling of time bypass
+        let time = t.unwrap_or(self.init_time);
         let code = BaseAuth::get_code(&secret, time)?;
 
         Ok(AuthCode::new(&secret, code, time, EXPIRATION_DISCREPANCY))

@@ -2,22 +2,23 @@ pub mod header;
 pub mod types;
 
 use serde::{Serialize, Deserialize};
-use crate::types::{IdentityKey};
-use crate::header::PayloadHeader;
 
-#[derive(Debug, Serialize, Deserialize)]
+// re-export
+pub use crate::header::{PayloadHeader, AuthHeader}; 
+pub use crate::types::{CryptoHash, SecertKey};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Payload<B> {
-    payload_header: PayloadHeader,
+    pub payload_header: PayloadHeader,
 
-    from: IdentityKey,
-    to: Option<IdentityKey>,
+    pub from: String, // PeerId
+    pub to: String, // PeerId
 
-    body: B,
+    pub body: B,
 }
 
 #[cfg(test)]
 mod test {
-    use skw_mpc_auth::{AuthCode};
     use crate::header::PayloadType;
     use super::{PayloadHeader, Payload};
 
@@ -26,15 +27,15 @@ mod test {
         let header = PayloadHeader::new(
             [0u8; 32],
             PayloadType::KeyGen(None),
-            AuthCode::default()
+            1, 3,
         );
 
         let msg = Payload {
             payload_header: header,
-            
-            from: [0u8; 32],
-            to: None,
 
+            from: "one".to_string(),
+            to: "two".to_string(),
+            
             body: "test_msg"
         };
 
