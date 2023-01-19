@@ -47,9 +47,6 @@ pub struct MpcNode {
     node_start_outgoing_sender: mpsc::Sender<CryptoHash>,
     node_start_outgoing_receiver: mpsc::Receiver<CryptoHash>,
 
-    node_start_incoming_sender: mpsc::Sender<CryptoHash>,
-    node_start_incoming_receiver: mpsc::Receiver<CryptoHash>,
-
     // job message channels
     keygen_protocol_runs: HashMap<CryptoHash, (
         Vec<PeerId>, // peers 
@@ -65,7 +62,6 @@ impl MpcNode {
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
         eprintln!("Local peer id: {local_peer_id}");
-
 
         let transport = {
             let multiplexing_config = {
@@ -122,8 +118,6 @@ impl MpcNode {
 
         // the outgoing mesasge thread spawner channel
         let (node_start_outgoing_sender, node_start_outgoing_receiver) = mpsc::channel(0);
-        let (node_start_incoming_sender, node_start_incoming_receiver) = mpsc::channel(0);
-
         Ok(Self {
             local_peer_id, 
             client: MpcNodeClient { command_sender },
@@ -139,126 +133,133 @@ impl MpcNode {
             main_message_receiver: node_incoming_message_receiver,
 
             node_start_outgoing_sender, node_start_outgoing_receiver,
-            node_start_incoming_sender, node_start_incoming_receiver,
 
             keygen_protocol_runs: Default::default(),
         })
     }
-    // TODO: spawn this into a new thread
-    pub async fn job_creation_handler(&mut self) {
-        while let Some((job_header, peers)) = self.new_job_from_network_receiver.next().await {
-
-            self.node_start_outgoing_sender.send(job_header.clone().payload_id).await.expect("receiver not to be dropped");
-
-            match job_header.payload_type {
-                PayloadType::KeyGen(maybe_existing_key) => {
-                    eprintln!("maybe_existing_key {:?}", maybe_existing_key);
-
-                    // The keygen protocol IO - they are useful for one specific job
-                    // We dont attach these channels to the main event channels yet
-                    // in the job creation stream - just creating those are good enough
-                    let (protocol_in_sender, protocol_in_receiver) = mpsc::channel(0);
-                    let (protocol_out_sender, protocol_out_receiver) = mpsc::channel(0);
-
-                    self.keygen_protocol_runs.insert(job_header.payload_id, (
-                        peers,
-                        job_header,
-                        protocol_in_sender,
-                        protocol_out_receiver,
-                    ));
-
-                    async_std::task::spawn(async move {
-                        let keygen_sm = keygen::Keygen::new(1u16, 1u16, 3u16)
-                            .map_err(|e| {})
-                            .unwrap();
-                        let output = AsyncProtocol::new(keygen_sm, protocol_in_receiver, protocol_out_sender)
-                            .run()
-                            .await;
-                        
-                        println!("{:?}", output);
-                    });
-                },
-                PayloadType::Signing(_) => {
-                    unimplemented!()
-                },
-                PayloadType::KeyRefresh => {
-                    unimplemented!()
-                }
-            }
-        }
-    }
-
-    pub async fn handle_main_incoming_mesasge(&mut self) {
-        while let Some((header, body)) = self.main_message_receiver.next().await {
-            let job_id = header.payload_id;
-            if let Some(( 
-                _peers, 
-                _payload_header, 
-                incoming_sender, 
-                _outgoing_receiver, 
-            )) = self.keygen_protocol_runs.get_mut(&job_id) {
-                incoming_sender.send(Ok(
-                    bincode::deserialize(&body).unwrap()
-                ))
-                .await
-                .expect("sender should not be dropped yet.");
-            } else {
-                unimplemented!()
-            }
-
-        }
-    }
-
-    pub async fn handle_keygen_outgoing_msg(&mut self) {
-        while let Some(job_id) = self.start_outgoing_receiver.next().await {
-            if let Some((
-                peers, 
-                payload_header, 
-                _incoming, 
-                outgoing
-            )) = self.keygen_protocol_runs.get_mut(&job_id) {
-                while let Some(msg) = outgoing.next().await {
-                    match msg.receiver {
-                        // this is a p2p message - only one receiver is assigned
-                        Some(to) => {
-                            assert!(to >= 1 && to <= peers.len() as u16, "wrong receiver index");
     
-                            let payload = Payload {
-                                payload_header: payload_header.clone(),
-                                from: self.local_peer_id.to_string(),
-                                to: peers[(to - 1) as usize].to_string(),
-                                body: bincode::serialize(&msg).unwrap(), // TODO: make this unwrap better handled
-                            };
-    
-                            self.client
-                                .send_request(peers[(to - 1) as usize], MpcP2pRequest::RawMessage { payload })
-                                .await
-                                .expect("node should take in this request");
+    pub async fn run(&mut self) {
+
+        loop {
+            futures::select!{
+                _ = self.event_loop.run().fuse() => {},
+
+                // handle job creation
+                (job_header, peers) = self.new_job_from_network_receiver.select_next_some() => {
+                    self.node_start_outgoing_sender.send(job_header.clone().payload_id).await.expect("receiver not to be dropped");
+
+                    match job_header.payload_type {
+                        PayloadType::KeyGen(maybe_existing_key) => {
+                            eprintln!("maybe_existing_key {:?}", maybe_existing_key);
+
+                            // The keygen protocol IO - they are useful for one specific job
+                            // We dont attach these channels to the main event channels yet
+                            // in the job creation stream - just creating those are good enough
+                            let (protocol_in_sender, protocol_in_receiver) = mpsc::channel(0);
+                            let (protocol_out_sender, protocol_out_receiver) = mpsc::channel(0);
+
+                            self.keygen_protocol_runs.insert(job_header.payload_id, (
+                                peers,
+                                job_header,
+                                protocol_in_sender,
+                                protocol_out_receiver,
+                            ));
+
+                            async_std::task::spawn(async move {
+                                let keygen_sm = keygen::Keygen::new(1u16, 1u16, 3u16)
+                                    .map_err(|e| {})
+                                    .unwrap();
+                                let output = AsyncProtocol::new(keygen_sm, protocol_in_receiver, protocol_out_sender)
+                                    .run()
+                                    .await;
+                                
+                                println!("{:?}", output);
+                            });
                         },
-                        // this is a broadcast message
-                        None => {
-                            for peer in peers.clone() {
-                                if peer.to_string() != self.local_peer_id.to_string() {
+                        PayloadType::Signing(_) => {
+                            unimplemented!()
+                        },
+                        PayloadType::KeyRefresh => {
+                            unimplemented!()
+                        }
+                    }
+                },
+
+                // handle_main_incoming_mesasge
+                (header, body) = self.main_message_receiver.select_next_some() => {
+                    let job_id = header.payload_id;
+                    if let Some(( 
+                        _peers, 
+                        _payload_header, 
+                        incoming_sender, 
+                        _outgoing_receiver, 
+                    )) = self.keygen_protocol_runs.get_mut(&job_id) {
+                        incoming_sender.send(Ok(
+                            bincode::deserialize(&body).unwrap()
+                        ))
+                        .await
+                        .expect("sender should not be dropped yet.");
+                    } else {
+                        unimplemented!()
+                    }
+                },
+
+                // handle_keygen_outgoing_msg
+                job_id = self.node_start_outgoing_receiver.select_next_some() => {
+                    if let Some((
+                        peers, 
+                        payload_header, 
+                        _incoming, 
+                        outgoing
+                    )) = self.keygen_protocol_runs.get_mut(&job_id) {
+                        
+                        // TODO: maybe spawn in new thread?
+                        while let Some(msg) = outgoing.next().await {
+                            match msg.receiver {
+                                // this is a p2p message - only one receiver is assigned
+                                Some(to) => {
+                                    assert!(to >= 1 && to <= peers.len() as u16, "wrong receiver index");
+            
                                     let payload = Payload {
                                         payload_header: payload_header.clone(),
                                         from: self.local_peer_id.to_string(),
-                                        to: peer.to_string(),
+                                        to: peers[(to - 1) as usize].to_string(),
                                         body: bincode::serialize(&msg).unwrap(), // TODO: make this unwrap better handled
                                     };
-                
+            
                                     self.client
-                                        .send_request(peer.clone(), MpcP2pRequest::RawMessage { payload })
+                                        .send_request(peers[(to - 1) as usize], MpcP2pRequest::RawMessage { payload })
                                         .await
-                                        .expect("node should take in these requests");
+                                        .expect("node should take in this request");
+                                },
+                                // this is a broadcast message
+                                None => {
+                                    for peer in peers.clone() {
+                                        if peer.to_string() != self.local_peer_id.to_string() {
+                                            let payload = Payload {
+                                                payload_header: payload_header.clone(),
+                                                from: self.local_peer_id.to_string(),
+                                                to: peer.to_string(),
+                                                body: bincode::serialize(&msg).unwrap(), // TODO: make this unwrap better handled
+                                            };
+                        
+                                            self.client
+                                                .send_request(peer.clone(), MpcP2pRequest::RawMessage { payload })
+                                                .await
+                                                .expect("node should take in these requests");
+                                        }
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        panic!("job should exists");
+                        // unexpected   
                     }
                 }
-            } else {
-                panic!("job should exists");
-                // unexpected   
+
             }
         }
+
     }
 }

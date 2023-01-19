@@ -12,10 +12,9 @@ async fn main() -> Result<(), MpcNodeError> {
     loop {
 
         futures::select! {
-            _ = node.event_loop.run().fuse() => {},
-            _ = node.job_creation_handler().fuse() => {},
-            _ = node.handle_main_incoming_mesasge().fuse() => {}
-            _ = node.handle_keygen_outgoing_msg().fuse() => {}        }
+            _ = node.run().fuse() => {},
+
+        }
     }
     // async_std::task::spawn(node.borrow_mut().job_creation_handler());
 
