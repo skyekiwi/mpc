@@ -5,7 +5,7 @@ use futures::channel::{mpsc, oneshot};
 use crate::behavior::{MpcP2pRequest, MpcP2pResponse};
 use crate::error::MpcNodeError;
 
-
+#[derive(Debug)]
 pub enum MpcNodeCommand {
     // Command to node
     StartListening {
@@ -39,7 +39,7 @@ impl MpcNodeClient {
         self.command_sender
             .send(MpcNodeCommand::StartListening { addr, result_sender })
             .await
-            .expect("MpcPubSubCommand receiver not to be dropped.");
+            .expect("MpcNodeCommand receiver not to be dropped.");
         result_receiver
             .await
             .expect("Sender not to be dropped.")

@@ -65,7 +65,7 @@ impl MpcNodeEventLoop {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), MpcNodeError>{
+    pub async fn run(mut self) -> Result<(), MpcNodeError>{
         loop {
             futures::select! {
                 // events are INCOMING Streams for the node raw events
@@ -75,6 +75,7 @@ impl MpcNodeEventLoop {
 
                 // commands are OUTGOING Sink of events 
                 command = self.command_receiver.select_next_some() => {
+                    println!("{:?}", command);
                     match self.handle_command(command).await {
                         Ok(()) => {},
                         Err(e) => eprintln!("{:?}", e)
@@ -146,20 +147,20 @@ impl MpcNodeEventLoop {
                         }
                     },
                     mdns::Event::Expired(list) => {
-                        for (peer_id, multiaddr) in list {
-                            println!("mDNS discover peer has expired: {peer_id} {multiaddr}");
+                        // for (peer_id, multiaddr) in list {
+                        //     println!("mDNS discover peer has expired: {peer_id} {multiaddr}");
                             
-                            // TODO: is this matching necessary?
-                            match self.known_peers.remove(&peer_id) {
-                                Some(v) => {
-                                    // TODO: handle if the node is still in use
-                                    eprintln!("Value Removed from Known_Peers {:?}", v);
-                                },
-                                None => {
-                                    eprintln!("peer_id not found in known_peers {:?}", peer_id);
-                                }
-                            }
-                        }
+                        //     // TODO: is this matching necessary?
+                        //     match self.known_peers.remove(&peer_id) {
+                        //         Some(v) => {
+                        //             // TODO: handle if the node is still in use
+                        //             eprintln!("Value Removed from Known_Peers {:?}", v);
+                        //         },
+                        //         None => {
+                        //             eprintln!("peer_id not found in known_peers {:?}", peer_id);
+                        //         }
+                        //     }
+                        // }
                     }
                 }
             },
@@ -187,12 +188,12 @@ impl MpcNodeEventLoop {
                                             if let Ok(peer) = peer {
 
                                                 // if this peer is in our list of known_peers
-                                                if let Some((_, in_job)) = self.known_peers.get_mut(&peer) {
+                                                // if let Some((_, in_job)) = self.known_peers.get_mut(&peer) {
                                                     // mark the peer as in jobs
-                                                    *in_job = true;
+                                                    // *in_job = true;
                                                     inner_vec.push(peer);
                                                     Some(inner_vec)
-                                                } else { None }
+                                                // } else { None }
                                             } else { None }
                                         } else { None }
                                     })
@@ -201,7 +202,7 @@ impl MpcNodeEventLoop {
 
                             // if the auth_header is invalid - send error
                             // if !auth_header.validate() {
-                            if true {
+                            if false {
                                 self.node
                                     .behaviour_mut()
                                     .request_response
@@ -279,6 +280,8 @@ impl MpcNodeEventLoop {
     }
 
     async fn handle_command(&mut self, request: MpcNodeCommand) -> Result<(), MpcNodeError> {
+
+        eprintln!("Command {:?}", request);
         match request {
             MpcNodeCommand::StartListening { addr, result_sender } => {
                 match self.node.listen_on(addr) {

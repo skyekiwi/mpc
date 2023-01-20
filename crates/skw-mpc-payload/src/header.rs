@@ -3,7 +3,7 @@ use crate::types::{CryptoHash, SecertKey};
 use skw_mpc_auth::{AuthCode};
 
 // TODO: a const for well-known pub key of auth provider
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthHeader {
     auth_code: AuthCode, 
     auth_code_sig: Vec<u8>
