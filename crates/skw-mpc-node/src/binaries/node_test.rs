@@ -33,21 +33,21 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("Listen not to fail.");
 
     client.dial(
-        "12D3KooWM8oPXYPMFBqVoQGGgTuy5vUfW2CuSZoPNorVrSoHMVm4".parse().unwrap(), 
-        "/ip4/100.104.199.31/tcp/64769/p2p/12D3KooWM8oPXYPMFBqVoQGGgTuy5vUfW2CuSZoPNorVrSoHMVm4".parse().unwrap()
+        "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/60278/p2p/12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().unwrap()
     )
         .await
         .expect("dailing to be not failed");
 
     client.dial(
-        "12D3KooWJFLENTzhKpkRkKKGb5jabkmhjydaswssTraehzAZqU5p".parse().unwrap(), 
-        "/ip4/100.104.199.31/tcp/64786/p2p/12D3KooWJFLENTzhKpkRkKKGb5jabkmhjydaswssTraehzAZqU5p".parse().unwrap()
+        "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/60287/p2p/12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().unwrap()
     )
         .await
         .expect("dailing to be not failed");
 
     client.send_request(
-        "12D3KooWJFLENTzhKpkRkKKGb5jabkmhjydaswssTraehzAZqU5p".parse().expect("right peer id"), 
+        "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -57,8 +57,27 @@ async fn main() -> Result<(), MpcNodeError> {
             ), 
             nodes: vec![
                 local_peer_id.to_string(), 
-                "12D3KooWM8oPXYPMFBqVoQGGgTuy5vUfW2CuSZoPNorVrSoHMVm4".to_string(), 
-                "12D3KooWJFLENTzhKpkRkKKGb5jabkmhjydaswssTraehzAZqU5p".to_string(),
+                "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".to_string(), 
+                "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".to_string(),
+            ],
+        }
+    )
+        .await
+        .expect("request should be taken");
+    
+    client.send_request(
+        "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().expect("right peer id"), 
+        MpcP2pRequest::StartJob { 
+            auth_header: AuthHeader::default(), 
+            job_header: PayloadHeader::new(
+                [0u8; 32], 
+                PayloadType::KeyGen(None), 
+                1, 3,
+            ), 
+            nodes: vec![
+                local_peer_id.to_string(), 
+                "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".to_string(), 
+                "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".to_string(),
             ],
         }
     )
@@ -76,9 +95,14 @@ async fn main() -> Result<(), MpcNodeError> {
     
     /* spin up all event loops */    
     // the job channel never closes - same lifetime as the binary
+    println!("starting event loops");
+    // TODO: if we are sending the request ourselves - we need to register it as well 
     loop {
         futures::select! {
-            (job_header, peers) = job_assignment_receiver.select_next_some() => {
+            raw = job_assignment_receiver.next() => {
+                println!("Raw Job Assignment {:?}", raw);
+                let (job_header, peers) = raw.unwrap();
+                println!("{:?} {:?}", job_header, peers);
 
                 println!("{:?} {:?}", job_header, peers);
                 match job_header.payload_type {
@@ -98,10 +122,12 @@ async fn main() -> Result<(), MpcNodeError> {
                             .await
                             .expect("main outgoing handler should not be dropped");
 
+                        eprintln!("Starting local keygen process");
                         async_std::task::spawn(async move {
                             let keygen_sm = keygen::Keygen::new(1u16, 1u16, 3u16)
                                 .map_err(|e| { println!("Protocl Error {:?}", e) })
                                 .unwrap();
+                            println!("Protocol Starting ");
                             let output = AsyncProtocol::new(keygen_sm, protocol_in_receiver, protocol_out_sender)
                                 .run()
                                 .await; // discard all error?

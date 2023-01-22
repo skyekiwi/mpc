@@ -1,7 +1,6 @@
 use std::{collections::{HashMap, hash_map::Entry}, str::FromStr};
 
 use libp2p::{
-    mdns, core::either::EitherError,
     swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
     Swarm,
     multiaddr, Multiaddr, 
@@ -11,7 +10,6 @@ use futures::{StreamExt, FutureExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use skw_mpc_payload::{PayloadHeader};
-use void::Void;
 use crate::{
     behavior::{MpcNodeBahavior, MpcNodeBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
     client::MpcNodeCommand, 
@@ -88,12 +86,11 @@ impl MpcNodeEventLoop {
     async fn handle_event(
         &mut self,
         event: SwarmEvent<
-            MpcNodeBahaviorEvent,
-            EitherError<Void, ConnectionHandlerUpgrErr<std::io::Error>>,
+            MpcNodeBahaviorEvent, ConnectionHandlerUpgrErr<std::io::Error>,
         >,
     ) {
 
-        eprintln!("{:?}", event);
+        // eprintln!("{:?}", event);
 
         match event {
             // general network
@@ -109,12 +106,20 @@ impl MpcNodeEventLoop {
                 peer_id, endpoint, ..
             } => {
                 if endpoint.is_dialer() {
+                    self.known_peers.insert(
+                        peer_id, (endpoint.get_remote_address().clone(), false)
+                    );
+                    println!("{:?}", self.known_peers);
+
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
                 }
             }
-            SwarmEvent::ConnectionClosed { .. } => {}
+            SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                println!("{:?} Disconnected", peer_id);
+                self.known_peers.remove(&peer_id);
+            }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
@@ -127,44 +132,6 @@ impl MpcNodeEventLoop {
             SwarmEvent::IncomingConnectionError { .. } => {}
             SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
 
-            // mDNS passive local node discovery
-            SwarmEvent::Behaviour(MpcNodeBahaviorEvent::Mdns(mdns_event)) => {
-                match mdns_event {
-                    mdns::Event::Discovered(list) => {
-                        for (peer_id, multiaddr) in list {
-                            println!("mDNS discovered a new peer: {peer_id} {multiaddr}");
-                            
-                            // TODO: is this matching necessary?
-                            match self.known_peers.insert(
-                                peer_id, (multiaddr, false)
-                            ) {
-                                None => {},
-                                Some(old_value) => {
-                                    eprint!("old_value of known_peer {:?} - {:?}", peer_id, old_value);
-                                    // unexpected!
-                                }
-                            };
-                        }
-                    },
-                    mdns::Event::Expired(list) => {
-                        // for (peer_id, multiaddr) in list {
-                        //     println!("mDNS discover peer has expired: {peer_id} {multiaddr}");
-                            
-                        //     // TODO: is this matching necessary?
-                        //     match self.known_peers.remove(&peer_id) {
-                        //         Some(v) => {
-                        //             // TODO: handle if the node is still in use
-                        //             eprintln!("Value Removed from Known_Peers {:?}", v);
-                        //         },
-                        //         None => {
-                        //             eprintln!("peer_id not found in known_peers {:?}", peer_id);
-                        //         }
-                        //     }
-                        // }
-                    }
-                }
-            },
-
             // p2p events
             SwarmEvent::Behaviour(MpcNodeBahaviorEvent::RequestResponse(
                 request_response::Event::Message { message, .. },
@@ -174,8 +141,12 @@ impl MpcNodeEventLoop {
                 request_response::Message::Request {
                     request, channel, ..
                 } => {
+
+                    println!("Request Received {:?}", request);
+
                     match request {
                         MpcP2pRequest::StartJob { auth_header, job_header, nodes } => {
+                            
                             let mut validate_nodes = |nodes: Vec<String>| -> Option<Vec<PeerId>> {
                                 nodes.iter()
                                     .fold(Some(Vec::new()), |res, node| {
@@ -187,22 +158,25 @@ impl MpcNodeEventLoop {
                                             // if the peer can be correctly parsed as PeerId
                                             if let Ok(peer) = peer {
 
+                                                inner_vec.push(peer);
+                                                Some(inner_vec)
                                                 // if this peer is in our list of known_peers
                                                 // if let Some((_, in_job)) = self.known_peers.get_mut(&peer) {
-                                                    // mark the peer as in jobs
-                                                    // *in_job = true;
-                                                    inner_vec.push(peer);
-                                                    Some(inner_vec)
+                                                //     // mark the peer as in jobs
+                                                //     *in_job = true;
+                                                //     inner_vec.push(peer);
+                                                //     Some(inner_vec)
                                                 // } else { None }
                                             } else { None }
                                         } else { None }
                                     })
                             };
+                            println!("{:?}", validate_nodes(nodes.clone()));
 
 
                             // if the auth_header is invalid - send error
                             // if !auth_header.validate() {
-                            if false {
+                            if !true {
                                 self.node
                                     .behaviour_mut()
                                     .request_response
@@ -211,11 +185,7 @@ impl MpcNodeEventLoop {
                                     })
                                     .unwrap(); // TODO: this unwrap is not correct
                             } else if let Some(peer_list) = validate_nodes(nodes.clone()) {
-                                self.node_incoming_job_sender
-                                    .send(( job_header, peer_list ))
-                                    .await
-                                    .expect("node_incoming_job_sender should not be dropped. qed.");
-
+                                println!("Job verification passed. Sending Response ...");
                                 self.node
                                     .behaviour_mut()
                                     .request_response
@@ -223,6 +193,13 @@ impl MpcNodeEventLoop {
                                         status: Ok(())
                                     })
                                     .unwrap(); // TODO: this unwrap is not correct
+                                println!("Job verification passed. Starting ...");
+                                self.node_incoming_job_sender
+                                    .send(( job_header, peer_list ))
+                                    .await
+                                    .expect("node_incoming_job_sender should not be dropped. qed.");
+                                println!("Job verification passed. msg sent ...");
+
                             } else {
                                 self.node
                                     .behaviour_mut()
@@ -248,6 +225,7 @@ impl MpcNodeEventLoop {
                     request_id,
                     response,
                 } => {
+                    println!("Sending Response {:?}", response);
                     // TODO: handle Err from `let Err(e) = response.status`
                     let _ = self
                         .pending_request

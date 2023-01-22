@@ -5039,7 +5039,6 @@ dependencies = [
  "skw-mpc-protocol",
  "skw-mpc-storage",
  "skw-round-based",
- "void",
 ]
 
 [[package]]

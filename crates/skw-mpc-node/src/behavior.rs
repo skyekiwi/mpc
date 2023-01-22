@@ -1,6 +1,5 @@
 use libp2p::{
-    // gossipsub, 
-    mdns, swarm::{NetworkBehaviour},
+    swarm::{NetworkBehaviour},
     request_response, 
 };
 
@@ -10,7 +9,7 @@ pub use self::skw_mpc_p2p_behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcP2pRe
 pub struct MpcNodeBahavior {
     
     // local network peer discovery
-    pub mdns: mdns::async_io::Behaviour,
+    // pub mdns: mdns::async_io::Behaviour,
 
     // node p2p behavior
     pub request_response: request_response::Behaviour<SkwMpcP2pCodec>,

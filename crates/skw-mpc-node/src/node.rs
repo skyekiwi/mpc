@@ -1,21 +1,15 @@
-use ::core::panic;
-use std::collections::HashMap;
-use futures::{StreamExt, SinkExt, AsyncBufReadExt, FutureExt};
-
 use libp2p::request_response::ProtocolSupport;
 use libp2p::{
-    identity, mdns, mplex, noise, yamux, core,
+    identity, mplex, noise, yamux, core,
     tcp, PeerId, Transport,
     Swarm, InboundUpgradeExt, OutboundUpgradeExt, 
     request_response,
 };
 
-use futures::{Sink, Stream, channel::mpsc};
+use futures::channel::mpsc;
 use skw_mpc_payload::{PayloadHeader};
 
-use skw_mpc_protocol::gg20::state_machine::{keygen, sign};
-
-use crate::behavior::{SkwMpcP2pProtocol, MpcP2pRequest};
+use crate::behavior::SkwMpcP2pProtocol;
 use crate::behavior::skw_mpc_p2p_behavior::SkwMpcP2pCodec;
 use crate::{
     behavior::MpcNodeBahavior, 
@@ -70,11 +64,11 @@ pub fn new_full_node() -> Result<(
     );
 
     let swarm = {
-        let mdns = mdns::async_io::Behaviour::new(mdns::Config::default(), local_peer_id)
-            .map_err(|_| MpcNodeError::FailToListenMDNS)?;
+        // let mdns = mdns::async_io::Behaviour::new(mdns::Config::default(), local_peer_id)
+        //     .map_err(|_| MpcNodeError::FailToListenMDNS)?;
         let behaviour = MpcNodeBahavior { 
             // gossipsub, 
-            mdns,
+            // mdns,
             request_response,
             // keep_alive: keep_alive::Behaviour::default(),
         };
@@ -85,7 +79,7 @@ pub fn new_full_node() -> Result<(
     let (node_incoming_message_sender, node_incoming_message_receiver) = mpsc::channel(0);
     
     // the new job notifier
-    let (new_job_from_network_sender, new_job_from_network_receiver) = mpsc::channel(0);
+    let (node_incoming_job_sender, node_incoming_job_receiver) = mpsc::channel(0);
 
     // the main outgoing channel
     let (command_sender, command_receiver) = mpsc::channel(0);
@@ -96,11 +90,11 @@ pub fn new_full_node() -> Result<(
         MpcNodeEventLoop::new(
             swarm, 
             node_incoming_message_sender,
-            new_job_from_network_sender, 
+            node_incoming_job_sender, 
             command_receiver
         ),
 
-        new_job_from_network_receiver,
+        node_incoming_job_receiver,
         node_incoming_message_receiver,
     ))
 }

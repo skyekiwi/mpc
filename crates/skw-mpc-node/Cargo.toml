@@ -29,7 +29,6 @@ bincode = "1.3.3"
 async-trait = "0.1.61"
 
 async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes", "std"] }
-void = { version = "*" }
 
 clap = { version = "3.1.16", features = ["derive"] }
 
@@ -38,3 +37,7 @@ clap = { version = "3.1.16", features = ["derive"] }
 [[bin]]
 name = "node-test"
 path = "src/binaries/node_test.rs"
+
+[[bin]]
+name = "node-light"
+path = "src/binaries/node_light.rs"
