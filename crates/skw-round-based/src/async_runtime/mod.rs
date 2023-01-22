@@ -9,6 +9,8 @@ use futures::stream::{self, FusedStream, Stream, StreamExt};
 use futures::SinkExt;
 use tokio::time::{self, timeout_at};
 
+use skw_mpc_payload::{Payload, PayloadHeader};
+
 use crate::{IsCritical, Msg, StateMachine};
 use watcher::{BlindWatcher, ProtocolWatcher, When};
 
@@ -16,40 +18,12 @@ pub mod watcher;
 
 /// Executes protocol in async environment using [tokio] backend
 ///
-/// In the most simple setting, you just provide protocol initial state, stream of incoming
-/// messages, and sink for outgoing messages, and you're able to easily execute it:
-/// ```no_run
-/// # use futures::stream::{self, Stream, FusedStream};
-/// # use futures::sink::{self, Sink, SinkExt};
-/// # use skw_round_based::{Msg, StateMachine, AsyncProtocol};
-/// # struct M;
-/// # #[derive(Debug)] struct Error;
-/// # impl From<std::convert::Infallible> for Error {
-/// #    fn from(_: std::convert::Infallible) -> Error { Error }
-/// # }
-/// # trait Constructable { fn initial() -> Self; }
-/// fn incoming() -> impl Stream<Item=Result<Msg<M>, Error>> + FusedStream + Unpin {
-///     // ...
-/// # stream::pending()
-/// }
-/// fn outgoing() -> impl Sink<Msg<M>, Error=Error> + Unpin {
-///     // ...
-/// # sink::drain().with(|x| futures::future::ok(x))
-/// }
-/// # async fn execute_protocol<State>() -> Result<(), skw_round_based::async_runtime::Error<State::Err, Error, Error>>
-/// # where State: StateMachine<MessageBody = M, Err = Error> + Constructable + Send + 'static
-/// # {
-/// let output: State::Output = AsyncProtocol::new(State::initial(), incoming(), outgoing())
-///     .run().await?;
-/// // ...
-/// # let _ = output; Ok(())
-/// # }
-/// ```
-///
 /// Note that if the protocol has some cryptographical assumptions on transport channel (e.g. messages
 /// should be encrypted, authenticated), then stream and sink must meet these assumptions (e.g. encrypt,
 /// authenticate messages)
 pub struct AsyncProtocol<SM, I, O, W = BlindWatcher> {
+    payload_header: PayloadHeader,
+    
     state: Option<SM>,
     incoming: I,
     outgoing: O,
@@ -61,8 +35,14 @@ pub struct AsyncProtocol<SM, I, O, W = BlindWatcher> {
 impl<SM, I, O> AsyncProtocol<SM, I, O, BlindWatcher> {
     /// Constructs new protocol executor from initial state, channels of incoming and outgoing
     /// messages
-    pub fn new(state: SM, incoming: I, outgoing: O) -> Self {
+    pub fn new(state: SM, incoming: I, outgoing: O, 
+        
+        payload_header: PayloadHeader, 
+
+    ) -> Self {
         Self {
+            payload_header,
+
             state: Some(state),
             incoming,
             outgoing,
@@ -83,6 +63,8 @@ impl<SM, I, O, W> AsyncProtocol<SM, I, O, W> {
     /// purposes it's convenient to pick [StderrWatcher](watcher::StderrWatcher).
     pub fn set_watcher<WR>(self, watcher: WR) -> AsyncProtocol<SM, I, O, WR> {
         AsyncProtocol {
+            payload_header: self.payload_header,
+
             state: self.state,
             incoming: self.incoming,
             outgoing: self.outgoing,
@@ -98,8 +80,8 @@ where
     SM: StateMachine,
     SM::Err: Send,
     SM: Send + 'static,
-    I: Stream<Item = Result<Msg<SM::MessageBody>, IErr>> + FusedStream + Unpin,
-    O: Sink<Msg<SM::MessageBody>> + Unpin,
+    I: Stream<Item = Result<Payload<Msg<SM::MessageBody>>, IErr>> + FusedStream + Unpin,
+    O: Sink<Payload<Msg<SM::MessageBody>>> + Unpin,
     W: ProtocolWatcher<SM>,
 {
     /// Get a reference to the inner state machine.
@@ -159,7 +141,11 @@ where
     async fn handle_incoming(&mut self) -> Result<(), Error<SM::Err, IErr, O::Error>> {
         let state = self.state.as_mut().ok_or(InternalError::MissingState)?;
         match Self::enforce_timeout(self.deadline, self.incoming.next()).await {
-            Ok(Some(Ok(msg))) => match state.handle_incoming(msg) {
+
+            // TODO: do any kinda pre-flight verification here on header
+            // 1. Validate if this msg is addressed to us
+
+            Ok(Some(Ok(msg))) => match state.handle_incoming(msg.body) {
                 Ok(()) => (),
                 Err(err) if err.is_critical() => return Err(Error::HandleIncoming(err)),
                 Err(err) => self
@@ -198,7 +184,16 @@ where
         let state = self.state.as_mut().ok_or(InternalError::MissingState)?;
 
         if !state.message_queue().is_empty() {
-            let mut msgs = stream::iter(state.message_queue().drain(..).map(Ok));
+            let mut msgs = stream::iter(state
+                .message_queue()
+                .drain(..)
+                .map(|m| {
+                    Ok(Payload {
+                        payload_header: self.payload_header.clone(),
+                        body: m,
+                    })
+                })
+            );
             self.outgoing
                 .send_all(&mut msgs)
                 .await

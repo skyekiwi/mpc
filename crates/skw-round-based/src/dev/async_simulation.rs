@@ -10,6 +10,7 @@ use tokio::sync::broadcast;
 
 use crate::async_runtime::{self, watcher::StderrWatcher, AsyncProtocol};
 use crate::{Msg, StateMachine};
+use skw_mpc_payload::{Payload, PayloadHeader};
 
 /// Emulates running protocol between local parties using [AsyncProtocol](crate::AsyncProtocol)
 ///
@@ -46,10 +47,14 @@ use crate::{Msg, StateMachine};
 /// # }
 /// ```
 pub struct AsyncSimulation<SM: StateMachine> {
-    tx: broadcast::Sender<Msg<SM::MessageBody>>,
+    tx: broadcast::Sender<Payload<Msg<SM::MessageBody>>>,
     parties: Vec<
         Option<
-            AsyncProtocol<SM, Incoming<SM::MessageBody>, Outgoing<SM::MessageBody>, StderrWatcher>,
+            AsyncProtocol<SM, 
+                Incoming<SM::MessageBody>, 
+                Outgoing<SM::MessageBody>, 
+                StderrWatcher
+            >,
         >,
     >,
     exhausted: bool,
@@ -80,7 +85,7 @@ where
         let outgoing = Outgoing {
             sender: self.tx.clone(),
         };
-        let party = AsyncProtocol::new(party, incoming, outgoing).set_watcher(StderrWatcher);
+        let party = AsyncProtocol::new(party, incoming, outgoing, PayloadHeader::default()).set_watcher(StderrWatcher);
         self.parties.push(Some(party));
         self
     }
@@ -129,10 +134,10 @@ where
 }
 
 type Incoming<M> =
-    Pin<Box<dyn FusedStream<Item = Result<Msg<M>, broadcast::error::RecvError>> + Send>>;
+    Pin<Box<dyn FusedStream<Item = Result<Payload<Msg<M>>, broadcast::error::RecvError>> + Send>>;
 
 fn incoming<M: Clone + Send + Unpin + 'static>(
-    mut rx: broadcast::Receiver<Msg<M>>,
+    mut rx: broadcast::Receiver<Payload<Msg<M>>>,
     me: u16,
 ) -> Incoming<M> {
     let stream = async_stream::stream! {
@@ -143,7 +148,7 @@ fn incoming<M: Clone + Send + Unpin + 'static>(
     };
     let stream = StreamExt::filter(stream, move |m| {
         ready(match m {
-            Ok(m) => m.sender != me && (m.receiver.is_none() || m.receiver == Some(me)),
+            Ok(m) => m.body.sender != me && (m.body.receiver.is_none() || m.body.receiver == Some(me)),
             Err(_) => true,
         })
     });
@@ -151,17 +156,17 @@ fn incoming<M: Clone + Send + Unpin + 'static>(
 }
 
 struct Outgoing<M> {
-    sender: broadcast::Sender<Msg<M>>,
+    sender: broadcast::Sender<Payload<Msg<M>>>,
 }
 
-impl<M> Sink<Msg<M>> for Outgoing<M> {
-    type Error = broadcast::error::SendError<Msg<M>>;
+impl<M> Sink<Payload<Msg<M>>> for Outgoing<M> {
+    type Error = broadcast::error::SendError<Payload<Msg<M>>>;
 
     fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn start_send(self: Pin<&mut Self>, item: Msg<M>) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: Payload<Msg<M>>) -> Result<(), Self::Error> {
         self.sender.send(item).map(|_| ())
     }
 
@@ -183,7 +188,7 @@ pub enum AsyncSimulationError<SM: StateMachine> {
         async_runtime::Error<
             SM::Err,
             broadcast::error::RecvError,
-            broadcast::error::SendError<Msg<SM::MessageBody>>,
+            broadcast::error::SendError<Payload<Msg<SM::MessageBody>>>,
         >,
     ),
     /// Protocol execution produced a panic

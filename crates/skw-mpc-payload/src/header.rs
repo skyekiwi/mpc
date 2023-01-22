@@ -1,3 +1,4 @@
+use libp2p::PeerId;
 use serde::{Serialize, Deserialize};
 use crate::types::{CryptoHash, SecertKey};
 use skw_mpc_auth::{AuthCode};
@@ -47,6 +48,9 @@ pub struct PayloadHeader {
     pub payload_id: CryptoHash,
     pub payload_type: PayloadType,
 
+    pub peers: Vec<PeerId>, // PeerIds
+    pub sender: PeerId,
+
     pub t: u16, 
     pub n: u16,
 }
@@ -55,30 +59,43 @@ impl PayloadHeader {
     pub fn new(
         payload_id: CryptoHash,
         payload_type: PayloadType,
+        peers: Vec<PeerId>,
+        sender: PeerId,
 
         t: u16, n: u16,
     ) -> Self {
         Self {
-            payload_id, payload_type, t, n,
+            payload_id, payload_type, 
+            peers, sender,
+            t, n,
+        }
+    }
+}
+
+impl Default for PayloadHeader {
+    fn default() -> Self {
+        let peers = vec![PeerId::random(), PeerId::random(), PeerId::random()];
+        Self {
+            payload_id: [0u8; 32],
+            payload_type: PayloadType::KeyGen(None),
+            peers: peers.clone(),
+            sender: peers[0],
+
+            t: 2, n: 3,
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    
     use skw_mpc_auth::{EmailAuth};
     use crate::header::AuthHeader;
 
-    use super::{PayloadHeader, PayloadType};
+    use super::{PayloadHeader};
 
     #[test]
     fn serde_payload_header() {
-        let header = PayloadHeader::new(
-            [0u8; 32], 
-            PayloadType::KeyGen(None), 
-            1, 3,
-        );
+        let header = PayloadHeader::default();
 
         println!("{:?}", header);
         let encoded = bincode::serialize(&header).unwrap();
