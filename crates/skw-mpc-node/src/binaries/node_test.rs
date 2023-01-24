@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use futures::{StreamExt, SinkExt, AsyncBufReadExt, FutureExt, channel::mpsc};
 
-use libp2p::PeerId;
+use libp2p::{PeerId, Multiaddr};
 use skw_mpc_node::{
     node::{new_full_node},
     error::MpcNodeError, behavior::MpcP2pRequest
@@ -28,26 +28,26 @@ async fn main() -> Result<(), MpcNodeError> {
     
     let _event_loop_jh = async_std::task::spawn(event_loop.run());
 
-    client.start_listening("/ip4/0.0.0.0/tcp/0".parse().expect("address need to be valid"))
+    client.start_listening("/ip4/10.0.0.3/tcp/0".parse().expect("address need to be valid"))
         .await
         .expect("Listen not to fail.");
 
     client.dial(
-        "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/57277/p2p/12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap()
+        "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/64707/p2p/12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.dial(
-        "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/57282/p2p/12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap()
+        "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/64705/p2p/12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.send_request(
-        "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().expect("right peer id"), 
+        "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -55,8 +55,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(),
-                    "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(),
+                    "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(),
+                    "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -67,7 +67,7 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("request should be taken");
     
     client.send_request(
-        "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().expect("right peer id"), 
+        "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -75,8 +75,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(),
-                    "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(),
+                    "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(),
+                    "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -99,7 +99,6 @@ async fn main() -> Result<(), MpcNodeError> {
     loop {
         futures::select! {
             payload_header = job_assignment_receiver.select_next_some() => {
-                println!("{:?}", payload_header);
                 match payload_header.payload_type {
                     PayloadType::KeyGen(maybe_existing_key) => {
                         eprintln!("maybe_existing_key {:?}", maybe_existing_key);
@@ -143,8 +142,13 @@ async fn main() -> Result<(), MpcNodeError> {
                     // this is a p2p message - only one receiver is assigned
                     Some(to) => {
                         assert!(to >= 1 && to <= payload.payload_header.peers.len() as u16, "wrong receiver index");
+                        let to_peer = payload.payload_header.peers[(to - 1) as usize];
                         client
-                            .send_request(payload.payload_header.peers[(to - 1) as usize], MpcP2pRequest::RawMessage { 
+                            .dial(to_peer, None)
+                            .await
+                            .expect("client should not be dropped");
+                        client
+                            .send_request(to_peer, MpcP2pRequest::RawMessage { 
                                 payload: bincode::serialize(&payload).unwrap()
                              })
                             .await
@@ -154,6 +158,10 @@ async fn main() -> Result<(), MpcNodeError> {
                     None => {
                         for peer in payload.clone().payload_header.peers {
                             if peer.to_string() != local_peer_id.to_string() {
+                                client
+                                    .dial(peer, None)
+                                    .await
+                                    .expect("client should not be dropped");
                                 client
                                     .send_request(peer.clone(), MpcP2pRequest::RawMessage { 
                                         payload: bincode::serialize(&payload).unwrap() 

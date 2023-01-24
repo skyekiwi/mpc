@@ -64,11 +64,8 @@ pub fn new_full_node() -> Result<(
     );
 
     let swarm = {
-        // let mdns = mdns::async_io::Behaviour::new(mdns::Config::default(), local_peer_id)
-        //     .map_err(|_| MpcNodeError::FailToListenMDNS)?;
         let behaviour = MpcNodeBahavior { 
             // gossipsub, 
-            // mdns,
             request_response,
             // keep_alive: keep_alive::Behaviour::default(),
         };

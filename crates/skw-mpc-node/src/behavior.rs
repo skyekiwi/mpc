@@ -7,10 +7,6 @@ pub use self::skw_mpc_p2p_behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcP2pRe
 
 #[derive(NetworkBehaviour)]
 pub struct MpcNodeBahavior {
-    
-    // local network peer discovery
-    // pub mdns: mdns::async_io::Behaviour,
-
     // node p2p behavior
     pub request_response: request_response::Behaviour<SkwMpcP2pCodec>,
 }
@@ -94,7 +90,7 @@ pub mod skw_mpc_p2p_behavior {
         where
             T: AsyncRead + Unpin + Send,
         {
-            let vec = read_length_prefixed(io, 500_000).await?; // update transfer maximum
+            let vec = read_length_prefixed(io, 1024).await?; // update transfer maximum
 
             if vec.is_empty() {
                 return Err(io::ErrorKind::UnexpectedEof.into());

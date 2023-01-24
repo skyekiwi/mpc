@@ -27,7 +27,7 @@ async fn main() -> Result<(), MpcNodeError> {
     
     let _event_loop_jh = async_std::task::spawn(event_loop.run());
 
-    client.start_listening("/ip4/0.0.0.0/tcp/0".parse().expect("address need to be valid"))
+    client.start_listening("/ip4/10.0.0.3/tcp/0".parse().expect("address need to be valid"))
         .await
         .expect("Listen not to fail.");
 
@@ -46,7 +46,6 @@ async fn main() -> Result<(), MpcNodeError> {
     loop {
         futures::select! {
             payload_header = job_assignment_receiver.select_next_some() => {
-                println!("{:?}", payload_header);
                 match payload_header.payload_type {
                     PayloadType::KeyGen(maybe_existing_key) => {
                         eprintln!("maybe_existing_key {:?}", maybe_existing_key);
@@ -90,8 +89,13 @@ async fn main() -> Result<(), MpcNodeError> {
                     // this is a p2p message - only one receiver is assigned
                     Some(to) => {
                         assert!(to >= 1 && to <= payload.payload_header.peers.len() as u16, "wrong receiver index");
+                        let to_peer = payload.payload_header.peers[(to - 1) as usize];
                         client
-                            .send_request(payload.payload_header.peers[(to - 1) as usize], MpcP2pRequest::RawMessage { 
+                            .dial(to_peer, None)
+                            .await
+                            .expect("client should not be dropped");
+                        client
+                            .send_request(to_peer, MpcP2pRequest::RawMessage { 
                                 payload: bincode::serialize(&payload).unwrap()
                              })
                             .await
@@ -101,6 +105,10 @@ async fn main() -> Result<(), MpcNodeError> {
                     None => {
                         for peer in payload.clone().payload_header.peers {
                             if peer.to_string() != local_peer_id.to_string() {
+                                client
+                                    .dial(peer, None)
+                                    .await
+                                    .expect("client should not be dropped");
                                 client
                                     .send_request(peer.clone(), MpcP2pRequest::RawMessage { 
                                         payload: bincode::serialize(&payload).unwrap() 

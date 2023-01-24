@@ -14,7 +14,7 @@ pub enum MpcNodeCommand {
     },
     Dial {
         peer_id: PeerId,
-        peer_addr: Multiaddr,
+        peer_addr: Option<Multiaddr>,
         result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
     },
     // CORE: Command to ReqRes P2p sub-protocol 
@@ -49,7 +49,7 @@ impl MpcNodeClient {
     pub async fn dial(
         &mut self,
         peer_id: PeerId,
-        peer_addr: Multiaddr,
+        peer_addr: Option<Multiaddr>,
     ) -> Result<(), MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.command_sender

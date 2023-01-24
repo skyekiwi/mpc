@@ -4,7 +4,7 @@ use libp2p::{
     swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
     Swarm,
     multiaddr, Multiaddr, 
-    request_response::{self, RequestId,},
+    request_response::{self, RequestId,}, 
 };
 use futures::{StreamExt, FutureExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
@@ -31,8 +31,7 @@ pub struct MpcNodeEventLoop {
     // Receiver: MpcNodeEventLoop
     command_receiver: mpsc::Receiver<MpcNodeCommand>,
 
-    /* internal state */
-    known_peers: HashMap<PeerId, (Multiaddr, bool)>, // PeerId -> (Address, if_in_use)
+    pub known_peers: HashMap<PeerId, (Multiaddr, bool)>, // PeerId -> (Address, if_in_use)
     
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
@@ -103,12 +102,13 @@ impl MpcNodeEventLoop {
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
-                if endpoint.is_dialer() {
-                    self.known_peers.insert(
-                        peer_id, (endpoint.get_remote_address().clone(), false)
-                    );
-                    println!("{:?}", self.known_peers);
+                println!("Established Connection {:?} {:?}", peer_id, endpoint);
+                self.known_peers.insert(
+                    peer_id, (endpoint.get_remote_address().clone(), false)
+                );
+                println!("{:?}", self.known_peers);
 
+                if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
@@ -250,22 +250,39 @@ impl MpcNodeEventLoop {
                 }.map_err(|_| MpcNodeError::FailToSendViaChannel)
             },
             MpcNodeCommand::Dial { peer_id, peer_addr, result_sender } => {
-                if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                    match self
-                        .node
-                        .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
-                    {
-                        Ok(()) => {
-                            e.insert(result_sender);
-                            Ok(())
+                let mut dial = |peer_id, peer_addr: Multiaddr, result_sender| {
+                    if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
+                        match self
+                            .node
+                            .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
+                        {
+                            Ok(()) => {
+                                e.insert(result_sender);
+                                Ok(())
+                            }
+                            Err(_) => {
+                                result_sender.send(Err(MpcNodeError::FailToDial))
+                                    .map_err(|_| MpcNodeError::FailToSendViaChannel)
+                            }
                         }
-                        Err(_) => {
-                            result_sender.send(Err(MpcNodeError::FailToDial))
-                                .map_err(|_| MpcNodeError::FailToSendViaChannel)
+                    } else {
+                        todo!("Already dialing peer.");
+                    }
+                };
+                
+                match peer_addr {
+                    Some(peer_addr) => {
+                        dial(peer_id, peer_addr, result_sender)
+                    },
+                    None => {
+                        let peer_record = self.known_peers.get(&peer_id);
+                        match peer_record {
+                            Some((addr, _)) => {
+                                dial(peer_id, addr.clone(), result_sender)
+                            },
+                            None => Err(MpcNodeError::P2pUnknownPeers)
                         }
                     }
-                } else {
-                    todo!("Already dialing peer.");
                 }
             },
             MpcNodeCommand::SendP2pRequest { to, request, result_sender } => {
