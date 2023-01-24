@@ -70,7 +70,6 @@ impl MpcNodeEventLoop {
 
                 // commands are OUTGOING Sink of events 
                 command = self.command_receiver.select_next_some() => {
-                    println!("{:?}", command);
                     match self.handle_command(command).await {
                         Ok(()) => {},
                         Err(e) => eprintln!("{:?}", e)
@@ -103,15 +102,15 @@ impl MpcNodeEventLoop {
                 peer_id, endpoint, ..
             } => {
                 println!("Established Connection {:?} {:?}", peer_id, endpoint);
-                self.known_peers.insert(
-                    peer_id, (endpoint.get_remote_address().clone(), false)
-                );
-                println!("{:?}", self.known_peers);
-
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
+                } else {
+                    self.known_peers.insert(
+                        peer_id, (endpoint.get_remote_address().clone(), false)
+                    );
+                    println!("{:?}", self.known_peers);
                 }
             }
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
@@ -145,7 +144,7 @@ impl MpcNodeEventLoop {
                     match request {
                         MpcP2pRequest::StartJob { auth_header, job_header } => {
                             
-                            let validate_nodes = |nodes: Vec<PeerId>| -> bool {
+                            let validate_nodes = |_nodes: Vec<PeerId>| -> bool {
                                 // nodes.iter()
                                 //     .all(|peer| {
                                 //         self.known_peers.contains_key(peer)
@@ -239,7 +238,7 @@ impl MpcNodeEventLoop {
 
     async fn handle_command(&mut self, request: MpcNodeCommand) -> Result<(), MpcNodeError> {
 
-        eprintln!("Command {:?}", request);
+        // eprintln!("Command {:?}", request);
         match request {
             MpcNodeCommand::StartListening { addr, result_sender } => {
                 match self.node.listen_on(addr) {
@@ -278,7 +277,12 @@ impl MpcNodeEventLoop {
                         let peer_record = self.known_peers.get(&peer_id);
                         match peer_record {
                             Some((addr, _)) => {
-                                dial(peer_id, addr.clone(), result_sender)
+
+                                println!("Got a NOP {:?}", addr.clone());
+                                result_sender.send(Ok(())).expect("Sender not to be drooped");
+
+                                Ok(()) // Do Nothing
+                                // dial(peer_id, addr.clone(), result_sender)
                             },
                             None => Err(MpcNodeError::P2pUnknownPeers)
                         }

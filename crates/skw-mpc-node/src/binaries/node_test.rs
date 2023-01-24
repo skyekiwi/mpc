@@ -33,21 +33,21 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("Listen not to fail.");
 
     client.dial(
-        "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(), 
-        Some("/ip4/10.0.0.3/tcp/64707/p2p/12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap())
+        "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/49802/p2p/12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.dial(
-        "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(), 
-        Some("/ip4/10.0.0.3/tcp/64705/p2p/12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap())
+        "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/49803/p2p/12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.send_request(
-        "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().expect("right peer id"), 
+        "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -55,8 +55,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(),
-                    "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(),
+                    "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(),
+                    "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -67,7 +67,7 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("request should be taken");
     
     client.send_request(
-        "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().expect("right peer id"), 
+        "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -75,8 +75,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWSmMeQ6mwArRhqNnC4TKQhSA3ZUmMVdK86LB1EmuHkQ6x".parse().unwrap(),
-                    "12D3KooWRvVYARHZKMzjA5EkXjCHd8mcYk7M2Wv2kc8HJHeUeazb".parse().unwrap(),
+                    "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(),
+                    "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -137,7 +137,7 @@ async fn main() -> Result<(), MpcNodeError> {
                 }
             },
             payload = main_outgoing_receiver.select_next_some() => {
-                println!("Outgoing sender msg received {:?}", payload);
+                // println!("Outgoing sender msg received {:?}", payload);
                 match payload.body.receiver {
                     // this is a p2p message - only one receiver is assigned
                     Some(to) => {
@@ -149,7 +149,7 @@ async fn main() -> Result<(), MpcNodeError> {
                             .expect("client should not be dropped");
                         client
                             .send_request(to_peer, MpcP2pRequest::RawMessage { 
-                                payload: bincode::serialize(&payload).unwrap()
+                                payload: bincode::serialize( &payload ).unwrap()
                              })
                             .await
                             .expect("client should not be dropped, node should take in this request");
@@ -174,7 +174,7 @@ async fn main() -> Result<(), MpcNodeError> {
                 }
             },
             payload = main_message_receiver.select_next_some() => {
-                let payload = bincode::deserialize::<Result< Payload<KeyGenMessage>, skw_mpc_protocol::Error>>(&payload).unwrap().unwrap();
+                let payload = bincode::deserialize::<Payload<KeyGenMessage>>(&payload).unwrap();
                 println!("{:?}", payload);
                 let pipe = channel_map.get_mut(&payload.payload_header.payload_id).unwrap();
                 pipe.send( Ok(payload) )
