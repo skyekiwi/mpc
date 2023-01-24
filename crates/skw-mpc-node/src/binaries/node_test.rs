@@ -33,104 +33,98 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("Listen not to fail.");
 
     client.dial(
-        "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/60278/p2p/12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().unwrap()
+        "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/57277/p2p/12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap()
     )
         .await
         .expect("dailing to be not failed");
 
     client.dial(
-        "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/60287/p2p/12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().unwrap()
+        "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/57282/p2p/12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap()
     )
         .await
         .expect("dailing to be not failed");
 
     client.send_request(
-        "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".parse().expect("right peer id"), 
+        "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
                 [0u8; 32], 
                 PayloadType::KeyGen(None), 
+                vec![
+                    local_peer_id,
+                    "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(),
+                    "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(),
+                ],
+                local_peer_id,
                 1, 3,
             ), 
-            nodes: vec![
-                local_peer_id.to_string(), 
-                "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".to_string(), 
-                "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".to_string(),
-            ],
         }
     )
         .await
         .expect("request should be taken");
     
     client.send_request(
-        "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".parse().expect("right peer id"), 
+        "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
                 [0u8; 32], 
                 PayloadType::KeyGen(None), 
+                vec![
+                    local_peer_id,
+                    "12D3KooWPnkiSLWXurFssyZFPmcY2Lm2eipGkywjoZrJHrKxVFKU".parse().unwrap(),
+                    "12D3KooWB1kgwiaGYE6Mgca4Yzxisn2LxTVz5G2UiBktN3pXAZEw".parse().unwrap(),
+                ],
+                local_peer_id,
                 1, 3,
-            ), 
-            nodes: vec![
-                local_peer_id.to_string(), 
-                "12D3KooWFD1tQQ1pEm8T2AaFk5Uv4cFGRp1cNyD5EtGFrzzvh7F5".to_string(), 
-                "12D3KooWJTg7xGdQE4bTkGCeytc8ERCmJz7S6syniRYtJRcrBJX4".to_string(),
-            ],
+            ),
         }
     )
         .await
         .expect("request should be taken");
 
-    /* Internal Memory state to keep in heap and stay alive the whole time */
-    // channel handler of all spin up tasks
-    let mut channel_map = HashMap::<
-        CryptoHash, mpsc::Sender<Result<KeyGenMessage, anyhow::Error>>, // protocol incoming
+        let mut channel_map = HashMap::<
+        CryptoHash, mpsc::Sender<Result<Payload<KeyGenMessage>, std::io::Error>>,  // protocol incoming
     >::new();
-
-    // channel to allocate a new job and spin up a new thread for it
-    let (mut main_outgoing_sender, mut main_outgoing_receiver) = mpsc::channel(0);
     
+    let (main_outgoing_sender, mut main_outgoing_receiver) = mpsc::channel::<Payload<KeyGenMessage>>(0);
+
     /* spin up all event loops */    
     // the job channel never closes - same lifetime as the binary
     println!("starting event loops");
-    // TODO: if we are sending the request ourselves - we need to register it as well 
+    
     loop {
         futures::select! {
-            raw = job_assignment_receiver.next() => {
-                println!("Raw Job Assignment {:?}", raw);
-                let (job_header, peers) = raw.unwrap();
-                println!("{:?} {:?}", job_header, peers);
-
-                println!("{:?} {:?}", job_header, peers);
-                match job_header.payload_type {
+            payload_header = job_assignment_receiver.select_next_some() => {
+                println!("{:?}", payload_header);
+                match payload_header.payload_type {
                     PayloadType::KeyGen(maybe_existing_key) => {
                         eprintln!("maybe_existing_key {:?}", maybe_existing_key);
     
                         // The keygen protocol IO - they are useful for one specific job
                         // We dont attach these channels to the main event channels yet
                         // in the job creation stream - just creating those are good enough
-                        let (protocol_in_sender, protocol_in_receiver) = mpsc::channel::<Result<KeyGenMessage, anyhow::Error>>(0);
-                        let (protocol_out_sender, protocol_out_receiver) = mpsc::channel(0);
-    
-                        channel_map.insert(job_header.clone().payload_id, protocol_in_sender);
-                        main_outgoing_sender.send((
-                            peers, job_header, protocol_out_receiver
-                        ))
-                            .await
-                            .expect("main outgoing handler should not be dropped");
+                        let (protocol_in_sender, protocol_in_receiver) = mpsc::channel(0);
+                        let protocol_outgoing_sender = main_outgoing_sender.clone();
+                        channel_map.insert(
+                            payload_header.clone().payload_id, protocol_in_sender
+                        );
 
                         eprintln!("Starting local keygen process");
                         async_std::task::spawn(async move {
                             let keygen_sm = keygen::Keygen::new(1u16, 1u16, 3u16)
                                 .map_err(|e| { println!("Protocl Error {:?}", e) })
                                 .unwrap();
-                            println!("Protocol Starting ");
-                            let output = AsyncProtocol::new(keygen_sm, protocol_in_receiver, protocol_out_sender)
+                            let output = AsyncProtocol::new(keygen_sm, 
+                                protocol_in_receiver, 
+                                protocol_outgoing_sender, 
+                                payload_header.clone()
+                            )
                                 .run()
-                                .await; // discard all error?
+                                .await; // TODO: discard all error?
 
                             println!("{:?}", output);
                         });
@@ -143,53 +137,42 @@ async fn main() -> Result<(), MpcNodeError> {
                     }
                 }
             },
-            (header, body) = main_message_receiver.select_next_some() => {
-                let pipe = channel_map.get_mut(&header.payload_id).unwrap();
-                pipe.send(Ok( bincode::deserialize(&body).unwrap()) )
-                    .await
-                    .expect("protocol income sender should not be dropped .. yet");
-            },
-            (peers, job_header, mut protocol_out_receiver) = main_outgoing_receiver.select_next_some() => {
-                loop { 
-                    let msg = protocol_out_receiver.select_next_some().await;
-                    match msg.receiver {
-                        // this is a p2p message - only one receiver is assigned
-                        Some(to) => {
-                            assert!(to >= 1 && to <= peers.len() as u16, "wrong receiver index");
-    
-                            let payload = Payload {
-                                payload_header: job_header.clone(),
-                                from: local_peer_id.to_string(),
-                                to: peers[(to - 1) as usize].to_string(),
-                                body: bincode::serialize(&msg).unwrap(), // TODO: make this unwrap better handled
-                            };
-    
-                            client
-                                .send_request(peers[(to - 1) as usize], MpcP2pRequest::RawMessage { payload })
-                                .await
-                                .expect("client should not be dropped, node should take in this request");
-                        },
-                        // this is a broadcast message
-                        None => {
-                            for peer in peers.clone() {
-                                if peer.to_string() != local_peer_id.to_string() {
-                                    let payload = Payload {
-                                        payload_header: job_header.clone(),
-                                        from: local_peer_id.to_string(),
-                                        to: peer.to_string(),
-                                        body: bincode::serialize(&msg).unwrap(), // TODO: make this unwrap better handled
-                                    };
-                
-                                    client
-                                        .send_request(peer.clone(), MpcP2pRequest::RawMessage { payload })
-                                        .await
-                                        .expect("node should take in these requests");
-                                }
+            payload = main_outgoing_receiver.select_next_some() => {
+                println!("Outgoing sender msg received {:?}", payload);
+                match payload.body.receiver {
+                    // this is a p2p message - only one receiver is assigned
+                    Some(to) => {
+                        assert!(to >= 1 && to <= payload.payload_header.peers.len() as u16, "wrong receiver index");
+                        client
+                            .send_request(payload.payload_header.peers[(to - 1) as usize], MpcP2pRequest::RawMessage { 
+                                payload: bincode::serialize(&payload).unwrap()
+                             })
+                            .await
+                            .expect("client should not be dropped, node should take in this request");
+                    },
+                    // this is a broadcast message
+                    None => {
+                        for peer in payload.clone().payload_header.peers {
+                            if peer.to_string() != local_peer_id.to_string() {
+                                client
+                                    .send_request(peer.clone(), MpcP2pRequest::RawMessage { 
+                                        payload: bincode::serialize(&payload).unwrap() 
+                                    })
+                                    .await
+                                    .expect("node should take in these requests");
                             }
                         }
                     }
                 }
-            }
+            },
+            payload = main_message_receiver.select_next_some() => {
+                let payload = bincode::deserialize::<Result< Payload<KeyGenMessage>, skw_mpc_protocol::Error>>(&payload).unwrap().unwrap();
+                println!("{:?}", payload);
+                let pipe = channel_map.get_mut(&payload.payload_header.payload_id).unwrap();
+                pipe.send( Ok(payload) )
+                    .await
+                    .expect("protocol income sender should not be dropped .. yet");
+            },
         }
     }
 }

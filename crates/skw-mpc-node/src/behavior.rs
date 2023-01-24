@@ -24,7 +24,7 @@ pub mod skw_mpc_p2p_behavior {
     use futures::prelude::*;
     use libp2p::core::upgrade::{read_length_prefixed, write_length_prefixed, ProtocolName};
     use libp2p::request_response::Codec;
-    use skw_mpc_payload::{AuthHeader, PayloadHeader, Payload};
+    use skw_mpc_payload::{AuthHeader, PayloadHeader};
 
     use crate::error::MpcNodeError;
 
@@ -39,10 +39,9 @@ pub mod skw_mpc_p2p_behavior {
         StartJob {
             auth_header: AuthHeader,
             job_header: PayloadHeader,
-            nodes: Vec<String>, // Vec<PeerId>
         },
         RawMessage {
-            payload: Payload< Vec<u8> >,
+            payload: Vec<u8>,
         },
     }
 

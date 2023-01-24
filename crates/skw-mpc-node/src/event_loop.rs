@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, hash_map::Entry}, str::FromStr};
+use std::collections::{HashMap, hash_map::Entry};
 
 use libp2p::{
     swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
@@ -23,28 +23,27 @@ pub struct MpcNodeEventLoop {
     // The incoming message channel
     // Sender: MpcNodeEventLoop
     // Receiver: MpcNode
-    node_incoming_message_sender: mpsc::Sender< (PayloadHeader, Vec<u8>) >,
-    node_incoming_job_sender: mpsc::Sender <(PayloadHeader, Vec<PeerId>)>,
+    node_incoming_message_sender: mpsc::Sender< Vec<u8> >,
+    node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
 
     // the command receiver
     // Sender: MpcNodeClient
     // Receiver: MpcNodeEventLoop
     command_receiver: mpsc::Receiver<MpcNodeCommand>,
 
-    /* other internla state */
+    /* internal state */
     known_peers: HashMap<PeerId, (Multiaddr, bool)>, // PeerId -> (Address, if_in_use)
     
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
-    // outgoing_results: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
 }
 
 impl MpcNodeEventLoop {
     pub fn new(
         node: Swarm<MpcNodeBahavior>,
 
-        node_incoming_message_sender: mpsc::Sender< (PayloadHeader, Vec<u8>) >,
-        node_incoming_job_sender: mpsc::Sender <(PayloadHeader, Vec<PeerId>)>,
+        node_incoming_message_sender: mpsc::Sender< Vec<u8> >,
+        node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
     
         command_receiver: mpsc::Receiver<MpcNodeCommand>,
     ) -> Self {
@@ -59,11 +58,10 @@ impl MpcNodeEventLoop {
 
             pending_dial: Default::default(),
             pending_request: Default::default(),
-            // outgoing_results: Default::default(),
         }
     }
 
-    pub async fn run(mut self) -> Result<(), MpcNodeError>{
+    pub async fn run(mut self) -> Result<(), MpcNodeError> {
         loop {
             futures::select! {
                 // events are INCOMING Streams for the node raw events
@@ -145,33 +143,17 @@ impl MpcNodeEventLoop {
                     println!("Request Received {:?}", request);
 
                     match request {
-                        MpcP2pRequest::StartJob { auth_header, job_header, nodes } => {
+                        MpcP2pRequest::StartJob { auth_header, job_header } => {
                             
-                            let mut validate_nodes = |nodes: Vec<String>| -> Option<Vec<PeerId>> {
-                                nodes.iter()
-                                    .fold(Some(Vec::new()), |res, node| {
-                                        
-                                        // if we have not invalidate things yet. - therefore res is Some()
-                                        if let Some(mut inner_vec) = res {
-                                            let peer = PeerId::from_str(&node);
+                            let validate_nodes = |nodes: Vec<PeerId>| -> bool {
+                                // nodes.iter()
+                                //     .all(|peer| {
+                                //         self.known_peers.contains_key(peer)
+                                //     })
 
-                                            // if the peer can be correctly parsed as PeerId
-                                            if let Ok(peer) = peer {
-
-                                                inner_vec.push(peer);
-                                                Some(inner_vec)
-                                                // if this peer is in our list of known_peers
-                                                // if let Some((_, in_job)) = self.known_peers.get_mut(&peer) {
-                                                //     // mark the peer as in jobs
-                                                //     *in_job = true;
-                                                //     inner_vec.push(peer);
-                                                //     Some(inner_vec)
-                                                // } else { None }
-                                            } else { None }
-                                        } else { None }
-                                    })
+                                true
                             };
-                            println!("{:?}", validate_nodes(nodes.clone()));
+                            println!("{:?}", validate_nodes(job_header.peers.clone()));
 
 
                             // if the auth_header is invalid - send error
@@ -184,8 +166,7 @@ impl MpcNodeEventLoop {
                                         status: Err(MpcNodeError::P2pBadAuthHeader)
                                     })
                                     .unwrap(); // TODO: this unwrap is not correct
-                            } else if let Some(peer_list) = validate_nodes(nodes.clone()) {
-                                println!("Job verification passed. Sending Response ...");
+                            } else if validate_nodes(job_header.peers.clone()) {
                                 self.node
                                     .behaviour_mut()
                                     .request_response
@@ -193,13 +174,11 @@ impl MpcNodeEventLoop {
                                         status: Ok(())
                                     })
                                     .unwrap(); // TODO: this unwrap is not correct
-                                println!("Job verification passed. Starting ...");
+
                                 self.node_incoming_job_sender
-                                    .send(( job_header, peer_list ))
+                                    .send(job_header )
                                     .await
                                     .expect("node_incoming_job_sender should not be dropped. qed.");
-                                println!("Job verification passed. msg sent ...");
-
                             } else {
                                 self.node
                                     .behaviour_mut()
@@ -212,8 +191,9 @@ impl MpcNodeEventLoop {
                         },
 
                         MpcP2pRequest::RawMessage { payload } => {
+                            // TODO: Handle errors correctly
                             self.node_incoming_message_sender
-                                .send( (payload.payload_header, payload.body) ) // payload.body is Vec<u8>
+                                .send( payload ) // TODO: this is an unsafe unwrap
                                 .await
                                 .expect("node_incoming_job_sender should not be dropped. qed.");
                         },

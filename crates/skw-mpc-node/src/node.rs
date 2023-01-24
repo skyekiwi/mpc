@@ -24,8 +24,8 @@ pub fn new_full_node() -> Result<(
     MpcNodeClient, 
     MpcNodeEventLoop, 
 
-    mpsc::Receiver<( PayloadHeader, Vec<PeerId> )>, // new job assignment channel - receiver side
-    mpsc::Receiver< (PayloadHeader, Vec<u8>) >, // main message incoming channel
+    mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
+    mpsc::Receiver< Vec<u8> >, // main message incoming channel
 ), MpcNodeError> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());

@@ -18,9 +18,11 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
+use serde::{Serialize, Deserialize};
+
 pub mod gg20;
 pub mod utilities;
-#[derive(Copy, PartialEq, Eq, Clone, Debug)]
+#[derive(Copy, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub enum Error {
     InvalidKey,
     InvalidSS,
