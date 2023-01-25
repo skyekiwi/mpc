@@ -33,21 +33,21 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("Listen not to fail.");
 
     client.dial(
-        "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(), 
-        Some("/ip4/10.0.0.3/tcp/49802/p2p/12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap())
+        "12D3KooWR1XwiHNUgpPXmjEnXGAscHM3ELMGNv2DKbWtANga1NUM".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/53079/p2p/12D3KooWR1XwiHNUgpPXmjEnXGAscHM3ELMGNv2DKbWtANga1NUM".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.dial(
-        "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(), 
-        Some("/ip4/10.0.0.3/tcp/49803/p2p/12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap())
+        "12D3KooWPLCNVJ8hN7abW65bag7CY5gr4PLYQxqVzDphw4bdGXpf".parse().unwrap(), 
+        Some("/ip4/10.0.0.3/tcp/53080/p2p/12D3KooWPLCNVJ8hN7abW65bag7CY5gr4PLYQxqVzDphw4bdGXpf".parse().unwrap())
     )
         .await
         .expect("dailing to be not failed");
 
     client.send_request(
-        "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().expect("right peer id"), 
+        "12D3KooWR1XwiHNUgpPXmjEnXGAscHM3ELMGNv2DKbWtANga1NUM".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -55,8 +55,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(),
-                    "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(),
+                    "12D3KooWR1XwiHNUgpPXmjEnXGAscHM3ELMGNv2DKbWtANga1NUM".parse().unwrap(),
+                    "12D3KooWPLCNVJ8hN7abW65bag7CY5gr4PLYQxqVzDphw4bdGXpf".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -67,7 +67,7 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("request should be taken");
     
     client.send_request(
-        "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().expect("right peer id"), 
+        "12D3KooWPLCNVJ8hN7abW65bag7CY5gr4PLYQxqVzDphw4bdGXpf".parse().expect("right peer id"), 
         MpcP2pRequest::StartJob { 
             auth_header: AuthHeader::default(), 
             job_header: PayloadHeader::new(
@@ -75,8 +75,8 @@ async fn main() -> Result<(), MpcNodeError> {
                 PayloadType::KeyGen(None), 
                 vec![
                     local_peer_id,
-                    "12D3KooWFeX7j2JcJfsSh1hD4BEvtoFC3Jau6mm9N6BF2DLmbe5Y".parse().unwrap(),
-                    "12D3KooWSkZjGygXis8tE97e3F541W9jUT7DkZrVbgbQ3XaZ5Vhp".parse().unwrap(),
+                    "12D3KooWR1XwiHNUgpPXmjEnXGAscHM3ELMGNv2DKbWtANga1NUM".parse().unwrap(),
+                    "12D3KooWPLCNVJ8hN7abW65bag7CY5gr4PLYQxqVzDphw4bdGXpf".parse().unwrap(),
                 ],
                 local_peer_id,
                 1, 3,
@@ -147,9 +147,12 @@ async fn main() -> Result<(), MpcNodeError> {
                             .dial(to_peer, None)
                             .await
                             .expect("client should not be dropped");
+                        
+                        let mut payload_out = payload.clone();
+                        payload_out.payload_header.sender = local_peer_id;
                         client
                             .send_request(to_peer, MpcP2pRequest::RawMessage { 
-                                payload: bincode::serialize( &payload ).unwrap()
+                                payload: bincode::serialize( &payload_out ).unwrap()
                              })
                             .await
                             .expect("client should not be dropped, node should take in this request");
@@ -162,12 +165,16 @@ async fn main() -> Result<(), MpcNodeError> {
                                     .dial(peer, None)
                                     .await
                                     .expect("client should not be dropped");
-                                client
+                                
+                                let mut payload_out = payload.clone();
+                                payload_out.payload_header.sender = local_peer_id;
+                                let x = client
                                     .send_request(peer.clone(), MpcP2pRequest::RawMessage { 
-                                        payload: bincode::serialize(&payload).unwrap() 
+                                        payload: bincode::serialize(&payload_out).unwrap() 
                                     })
-                                    .await
-                                    .expect("node should take in these requests");
+                                    .await;
+                                println!("Got Respobnse {:?}", x);
+                                    // .expect("node should take in these requests");
                             }
                         }
                     }
@@ -175,11 +182,11 @@ async fn main() -> Result<(), MpcNodeError> {
             },
             payload = main_message_receiver.select_next_some() => {
                 let payload = bincode::deserialize::<Payload<KeyGenMessage>>(&payload).unwrap();
-                println!("{:?}", payload);
-                let pipe = channel_map.get_mut(&payload.payload_header.payload_id).unwrap();
-                pipe.send( Ok(payload) )
-                    .await
-                    .expect("protocol income sender should not be dropped .. yet");
+                println!("Received Payload {:?} {:?}", payload.payload_header, channel_map);
+                // let pipe = channel_map.get_mut(&payload.payload_header.payload_id).unwrap();
+                // pipe.send( Ok(payload) )
+                //     .await
+                //     .expect("protocol income sender should not be dropped .. yet");
             },
         }
     }

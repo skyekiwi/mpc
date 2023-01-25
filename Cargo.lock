@@ -2923,6 +2923,7 @@ source = "git+https://github.com/libp2p/rust-libp2p#5b8c3d290187b888b2afc8288c8e
 dependencies = [
  "libp2p-core",
  "libp2p-identify",
+ "libp2p-kad",
  "libp2p-swarm",
  "prometheus-client",
 ]

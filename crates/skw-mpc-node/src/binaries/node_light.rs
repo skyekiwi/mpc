@@ -94,9 +94,12 @@ async fn main() -> Result<(), MpcNodeError> {
                             .dial(to_peer, None)
                             .await
                             .expect("client should not be dropped");
+                        
+                        let mut payload_out = payload.clone();
+                        payload_out.payload_header.sender = local_peer_id;
                         client
                             .send_request(to_peer, MpcP2pRequest::RawMessage { 
-                                payload: bincode::serialize( &payload ).unwrap()
+                                payload: bincode::serialize( &payload_out ).unwrap()
                              })
                             .await
                             .expect("client should not be dropped, node should take in this request");
@@ -109,9 +112,12 @@ async fn main() -> Result<(), MpcNodeError> {
                                     .dial(peer, None)
                                     .await
                                     .expect("client should not be dropped");
+                                
+                                let mut payload_out = payload.clone();
+                                payload_out.payload_header.sender = local_peer_id;
                                 client
                                     .send_request(peer.clone(), MpcP2pRequest::RawMessage { 
-                                        payload: bincode::serialize(&payload).unwrap() 
+                                        payload: bincode::serialize(&payload_out).unwrap() 
                                     })
                                     .await
                                     .expect("node should take in these requests");
@@ -122,7 +128,7 @@ async fn main() -> Result<(), MpcNodeError> {
             },
             payload = main_message_receiver.select_next_some() => {
                 let payload = bincode::deserialize::<Payload<KeyGenMessage>>(&payload).unwrap();
-                println!("{:?}", payload);
+                println!("Received Payload {:?} {:?}", payload, channel_map);
                 let pipe = channel_map.get_mut(&payload.payload_header.payload_id).unwrap();
                 pipe.send( Ok(payload) )
                     .await

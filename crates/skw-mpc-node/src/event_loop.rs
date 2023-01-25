@@ -102,20 +102,24 @@ impl MpcNodeEventLoop {
                 peer_id, endpoint, ..
             } => {
                 println!("Established Connection {:?} {:?}", peer_id, endpoint);
+                self.known_peers.insert(
+                    peer_id, (endpoint.get_remote_address().clone(), false)
+                );
+                println!("Known Peers {:?}", self.known_peers);
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
                 } else {
-                    self.known_peers.insert(
-                        peer_id, (endpoint.get_remote_address().clone(), false)
-                    );
-                    println!("{:?}", self.known_peers);
+                    // self.known_peers.insert(
+                    //     peer_id, (endpoint.get_remote_address().clone(), false)
+                    // );
+                    // println!("Known Peers {:?}", self.known_peers);
                 }
             }
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
                 println!("{:?} Disconnected", peer_id);
-                self.known_peers.remove(&peer_id);
+                // self.known_peers.remove(&peer_id);
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
@@ -139,11 +143,12 @@ impl MpcNodeEventLoop {
                     request, channel, ..
                 } => {
 
-                    println!("Request Received {:?}", request);
 
                     match request {
                         MpcP2pRequest::StartJob { auth_header, job_header } => {
                             
+                            println!("Request Received StartJob");
+
                             let validate_nodes = |_nodes: Vec<PeerId>| -> bool {
                                 // nodes.iter()
                                 //     .all(|peer| {
@@ -152,8 +157,6 @@ impl MpcNodeEventLoop {
 
                                 true
                             };
-                            println!("{:?}", validate_nodes(job_header.peers.clone()));
-
 
                             // if the auth_header is invalid - send error
                             // if !auth_header.validate() {
@@ -190,11 +193,21 @@ impl MpcNodeEventLoop {
                         },
 
                         MpcP2pRequest::RawMessage { payload } => {
+                            println!("Request Received StartJob");
+                            
                             // TODO: Handle errors correctly
                             self.node_incoming_message_sender
-                                .send( payload ) // TODO: this is an unsafe unwrap
+                                .send( payload )
                                 .await
                                 .expect("node_incoming_job_sender should not be dropped. qed.");
+                            
+                            self.node
+                                .behaviour_mut()
+                                .request_response
+                                .send_response(channel, MpcP2pResponse::RawMessage { 
+                                    status: Ok(())
+                                })
+                                .unwrap(); // TODO: this unwrap is not correct
                         },
                     }
                 }
@@ -217,11 +230,11 @@ impl MpcNodeEventLoop {
             // p2p message misc handler
             SwarmEvent::Behaviour(MpcNodeBahaviorEvent::RequestResponse(
                 request_response::Event::OutboundFailure {
-                    request_id, error, ..
+                    request_id, error, peer,
                 },
             )) => {
 
-                eprintln!("p2p outbound request failure {:?}", error);
+                eprintln!("p2p outbound request failure {:?} {:?}", error, peer);
                 let _ = self
                     .pending_request
                     .remove(&request_id)
@@ -237,8 +250,6 @@ impl MpcNodeEventLoop {
     }
 
     async fn handle_command(&mut self, request: MpcNodeCommand) -> Result<(), MpcNodeError> {
-
-        // eprintln!("Command {:?}", request);
         match request {
             MpcNodeCommand::StartListening { addr, result_sender } => {
                 match self.node.listen_on(addr) {

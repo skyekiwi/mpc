@@ -69,6 +69,9 @@ impl MpcNodeClient {
             .send(MpcNodeCommand::SendP2pRequest { to, request, result_sender })
             .await
             .expect("Command receiver not to be dropped.");
-        result_receiver.await.expect("Sender not to be dropped.")
+        let status = result_receiver.await.expect("Sender not to be dropped.");
+        println!("Got Response {:?}", status);
+
+        status
     }
 }
