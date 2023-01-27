@@ -34,9 +34,9 @@ void = "*"
 [dev-dependencies]
 
 [[bin]]
-name = "node-test"
-path = "src/binaries/node_test.rs"
-
-[[bin]]
 name = "node-light"
 path = "src/binaries/node_light.rs"
+
+[[bin]]
+name = "node-client"
+path = "src/binaries/node_client.rs"

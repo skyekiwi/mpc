@@ -1,4 +1,4 @@
-use libp2p::PeerId;
+use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, Deserialize};
 use crate::types::{CryptoHash, SecertKey};
 use skw_mpc_auth::{AuthCode};
@@ -48,7 +48,7 @@ pub struct PayloadHeader {
     pub payload_id: CryptoHash,
     pub payload_type: PayloadType,
 
-    pub peers: Vec<PeerId>, // PeerIds
+    pub peers: Vec<(PeerId, Multiaddr)>,
     pub sender: PeerId,
 
     pub t: u16, 
@@ -59,14 +59,14 @@ impl PayloadHeader {
     pub fn new(
         payload_id: CryptoHash,
         payload_type: PayloadType,
-        peers: Vec<PeerId>,
+        peers: Vec<(PeerId, Multiaddr)>,
         sender: PeerId,
 
         t: u16, n: u16,
     ) -> Self {
         Self {
             payload_id, payload_type, 
-            peers, sender,
+            peers, sender, 
             t, n,
         }
     }
@@ -74,12 +74,16 @@ impl PayloadHeader {
 
 impl Default for PayloadHeader {
     fn default() -> Self {
-        let peers = vec![PeerId::random(), PeerId::random(), PeerId::random()];
+        let peers = vec![
+            (PeerId::random(), "/ip4/127.0.0.1/tcp/5001".parse().unwrap()),
+            (PeerId::random(), "/ip4/127.0.0.1/tcp/5001".parse().unwrap()),
+            (PeerId::random(), "/ip4/127.0.0.1/tcp/5001".parse().unwrap())
+        ];
         Self {
             payload_id: [0u8; 32],
             payload_type: PayloadType::KeyGen(None),
             peers: peers.clone(),
-            sender: peers[0],
+            sender: peers[0].0,
 
             t: 2, n: 3,
         }

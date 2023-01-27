@@ -3,18 +3,19 @@ use std::collections::{HashMap, hash_map::Entry};
 use libp2p::{
     swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
     Swarm,
-    multiaddr, Multiaddr, 
-    request_response::{self, RequestId,}, 
+    multiaddr, 
+    request_response::{self, RequestId,}, Multiaddr, 
 };
 use futures::{StreamExt, FutureExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use skw_mpc_payload::{PayloadHeader};
-use crate::{
+use super::{
     behavior::{MpcNodeBahavior, MpcNodeBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
-    client::MpcNodeCommand, 
-    error::MpcNodeError,
+    client::MpcNodeCommand,
 };
+
+use crate::error::MpcNodeError;
 
 pub struct MpcNodeEventLoop {
     // the p2p node
@@ -29,12 +30,11 @@ pub struct MpcNodeEventLoop {
     // the command receiver
     // Sender: MpcNodeClient
     // Receiver: MpcNodeEventLoop
-    command_receiver: mpsc::Receiver<MpcNodeCommand>,
-
-    pub known_peers: HashMap<PeerId, (Multiaddr, bool)>, // PeerId -> (Address, if_in_use)
-    
+    command_receiver: mpsc::Receiver<MpcNodeCommand>,    
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
+    
+    listen_to_addr_sender: mpsc::Sender< Multiaddr >,
 }
 
 impl MpcNodeEventLoop {
@@ -45,6 +45,8 @@ impl MpcNodeEventLoop {
         node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
     
         command_receiver: mpsc::Receiver<MpcNodeCommand>,
+        
+        listen_to_addr_sender: mpsc::Sender< Multiaddr >,
     ) -> Self {
         Self {
             node,
@@ -53,10 +55,9 @@ impl MpcNodeEventLoop {
             
             command_receiver, 
 
-            known_peers: Default::default(),
-
             pending_dial: Default::default(),
             pending_request: Default::default(),
+            listen_to_addr_sender,
         }
     }
 
@@ -91,7 +92,10 @@ impl MpcNodeEventLoop {
         match event {
             // general network
             SwarmEvent::NewListenAddr { address, .. } => {
-                let local_peer_id = *self.node.local_peer_id();
+                let local_peer_id = self.node.local_peer_id().clone();
+                self.listen_to_addr_sender
+                    .send(address.clone().with(multiaddr::Protocol::P2p(local_peer_id.into())))
+                    .await;
                 eprintln!(
                     "Local node is listening on {:?}",
                     address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
@@ -102,24 +106,15 @@ impl MpcNodeEventLoop {
                 peer_id, endpoint, ..
             } => {
                 println!("Established Connection {:?} {:?}", peer_id, endpoint);
-                self.known_peers.insert(
-                    peer_id, (endpoint.get_remote_address().clone(), false)
-                );
-                println!("Known Peers {:?}", self.known_peers);
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
-                } else {
-                    // self.known_peers.insert(
-                    //     peer_id, (endpoint.get_remote_address().clone(), false)
-                    // );
-                    // println!("Known Peers {:?}", self.known_peers);
                 }
             }
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
                 println!("{:?} Disconnected", peer_id);
-                // self.known_peers.remove(&peer_id);
+                // TODO: handle connect close
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
@@ -142,22 +137,8 @@ impl MpcNodeEventLoop {
                 request_response::Message::Request {
                     request, channel, ..
                 } => {
-
-
                     match request {
                         MpcP2pRequest::StartJob { auth_header, job_header } => {
-                            
-                            println!("Request Received StartJob");
-
-                            let validate_nodes = |_nodes: Vec<PeerId>| -> bool {
-                                // nodes.iter()
-                                //     .all(|peer| {
-                                //         self.known_peers.contains_key(peer)
-                                //     })
-
-                                true
-                            };
-
                             // if the auth_header is invalid - send error
                             // if !auth_header.validate() {
                             if !true {
@@ -168,7 +149,14 @@ impl MpcNodeEventLoop {
                                         status: Err(MpcNodeError::P2pBadAuthHeader)
                                     })
                                     .unwrap(); // TODO: this unwrap is not correct
-                            } else if validate_nodes(job_header.peers.clone()) {
+                            } else {
+                                for (peer, address) in job_header.peers.iter() {
+                                    self.node
+                                        .behaviour_mut()
+                                        .request_response
+                                        .add_address(peer, address.clone());
+                                }
+
                                 self.node
                                     .behaviour_mut()
                                     .request_response
@@ -181,14 +169,6 @@ impl MpcNodeEventLoop {
                                     .send(job_header )
                                     .await
                                     .expect("node_incoming_job_sender should not be dropped. qed.");
-                            } else {
-                                self.node
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::StartJob { 
-                                        status: Err(MpcNodeError::P2pUnknownPeers)
-                                    })
-                                    .unwrap(); // TODO: this unwrap is not correct
                             }
                         },
 
@@ -217,7 +197,6 @@ impl MpcNodeEventLoop {
                     request_id,
                     response,
                 } => {
-                    println!("Sending Response {:?}", response);
                     // TODO: handle Err from `let Err(e) = response.status`
                     let _ = self
                         .pending_request
@@ -255,49 +234,34 @@ impl MpcNodeEventLoop {
                 match self.node.listen_on(addr) {
                     Ok(_) => {
                         result_sender.send(Ok(()))
+                            .expect("sender should not be dropped");
+                        Ok(())
                     },
                     Err(_e )=> result_sender.send(Err(MpcNodeError::FailToListenOnPort)),
                 }.map_err(|_| MpcNodeError::FailToSendViaChannel)
             },
             MpcNodeCommand::Dial { peer_id, peer_addr, result_sender } => {
-                let mut dial = |peer_id, peer_addr: Multiaddr, result_sender| {
-                    if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                        match self
-                            .node
-                            .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
-                        {
-                            Ok(()) => {
-                                e.insert(result_sender);
-                                Ok(())
-                            }
-                            Err(_) => {
-                                result_sender.send(Err(MpcNodeError::FailToDial))
-                                    .map_err(|_| MpcNodeError::FailToSendViaChannel)
-                            }
+                if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
+                    self.node
+                        .behaviour_mut()
+                        .request_response
+                        .add_address(&peer_id, peer_addr.clone());
+
+                    match self
+                        .node
+                        .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
+                    {
+                        Ok(()) => {
+                            e.insert(result_sender);
+                            Ok(())
                         }
-                    } else {
-                        todo!("Already dialing peer.");
-                    }
-                };
-                
-                match peer_addr {
-                    Some(peer_addr) => {
-                        dial(peer_id, peer_addr, result_sender)
-                    },
-                    None => {
-                        let peer_record = self.known_peers.get(&peer_id);
-                        match peer_record {
-                            Some((addr, _)) => {
-
-                                println!("Got a NOP {:?}", addr.clone());
-                                result_sender.send(Ok(())).expect("Sender not to be drooped");
-
-                                Ok(()) // Do Nothing
-                                // dial(peer_id, addr.clone(), result_sender)
-                            },
-                            None => Err(MpcNodeError::P2pUnknownPeers)
+                        Err(_) => {
+                            result_sender.send(Err(MpcNodeError::FailToDial))
+                                .map_err(|_| MpcNodeError::FailToSendViaChannel)
                         }
                     }
+                } else {
+                    todo!("Already dialing peer.");
                 }
             },
             MpcNodeCommand::SendP2pRequest { to, request, result_sender } => {

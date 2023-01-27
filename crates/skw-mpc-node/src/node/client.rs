@@ -2,8 +2,9 @@ use libp2p::{PeerId, Multiaddr};
 use futures::{SinkExt};
 use futures::channel::{mpsc, oneshot};
 
-use crate::behavior::{MpcP2pRequest, MpcP2pResponse};
 use crate::error::MpcNodeError;
+
+use super::behavior::{MpcP2pRequest, MpcP2pResponse};
 
 #[derive(Debug)]
 pub enum MpcNodeCommand {
@@ -14,7 +15,7 @@ pub enum MpcNodeCommand {
     },
     Dial {
         peer_id: PeerId,
-        peer_addr: Option<Multiaddr>,
+        peer_addr: Multiaddr,
         result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
     },
     // CORE: Command to ReqRes P2p sub-protocol 
@@ -49,9 +50,10 @@ impl MpcNodeClient {
     pub async fn dial(
         &mut self,
         peer_id: PeerId,
-        peer_addr: Option<Multiaddr>,
+        peer_addr: Multiaddr,
     ) -> Result<(), MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
+        
         self.command_sender
             .send(MpcNodeCommand::Dial {
                 peer_id,

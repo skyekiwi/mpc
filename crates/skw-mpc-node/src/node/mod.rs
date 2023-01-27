@@ -1,22 +1,25 @@
+mod behavior;
+mod client;
+mod event_loop;
+
 use libp2p::request_response::ProtocolSupport;
 use libp2p::{
     identity, mplex, noise, yamux, core,
     tcp, PeerId, Transport,
     Swarm, InboundUpgradeExt, OutboundUpgradeExt, 
-    request_response,
+    request_response, Multiaddr,
 };
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use skw_mpc_payload::{PayloadHeader};
 
-use crate::behavior::SkwMpcP2pProtocol;
-use crate::behavior::skw_mpc_p2p_behavior::SkwMpcP2pCodec;
-use crate::{
-    behavior::MpcNodeBahavior, 
-    client::{MpcNodeClient}, 
-    error::MpcNodeError,
-    event_loop::MpcNodeEventLoop
-};
+use behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcNodeBahavior};
+use crate::error::MpcNodeError;
+
+// re-export
+pub use client::MpcNodeClient;
+pub use event_loop::MpcNodeEventLoop;
+pub use behavior::{MpcP2pRequest, MpcP2pResponse};
 
 pub fn new_full_node() -> Result<(
     PeerId, // local peer id
@@ -24,6 +27,7 @@ pub fn new_full_node() -> Result<(
     MpcNodeClient, 
     MpcNodeEventLoop, 
 
+    mpsc::Receiver< Multiaddr >,
     mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
     mpsc::Receiver< Vec<u8> >, // main message incoming channel
 ), MpcNodeError> {
@@ -81,6 +85,8 @@ pub fn new_full_node() -> Result<(
     // the main outgoing channel
     let (command_sender, command_receiver) = mpsc::channel(0);
 
+    let (addr_sender, addr_receiver) = mpsc::channel(0);
+
     Ok( (
         local_peer_id, 
         MpcNodeClient { command_sender },
@@ -88,9 +94,11 @@ pub fn new_full_node() -> Result<(
             swarm, 
             node_incoming_message_sender,
             node_incoming_job_sender, 
-            command_receiver
+            command_receiver,
+            addr_sender
         ),
 
+        addr_receiver,
         node_incoming_job_receiver,
         node_incoming_message_receiver,
     ))

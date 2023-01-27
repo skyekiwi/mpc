@@ -1,15 +1,13 @@
 use libp2p::{
     swarm::{NetworkBehaviour},
-    request_response, kad::{Kademlia, store::MemoryStore}, 
+    request_response,
 };
 
+// re-export
 pub use self::skw_mpc_p2p_behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcP2pRequest, MpcP2pResponse};
 
 #[derive(NetworkBehaviour)]
 pub struct MpcNodeBahavior {
-
-    // pub dht: Kademlia<MemoryStore>,
-
     // node p2p behavior
     pub request_response: request_response::Behaviour<SkwMpcP2pCodec>,
 }
