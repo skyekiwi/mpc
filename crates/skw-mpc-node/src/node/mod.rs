@@ -10,7 +10,7 @@ use libp2p::{
     request_response, Multiaddr,
 };
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use skw_mpc_payload::{PayloadHeader};
 
 use behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcNodeBahavior};
@@ -83,7 +83,8 @@ pub fn new_full_node() -> Result<(
     let (node_incoming_job_sender, node_incoming_job_receiver) = mpsc::channel(0);
 
     // the main outgoing channel
-    let (command_sender, command_receiver) = mpsc::channel(0);
+    // we give it one buffer so that outgoing can be synced
+    let (command_sender, command_receiver) = mpsc::channel(1);
 
     let (addr_sender, addr_receiver) = mpsc::channel(0);
 

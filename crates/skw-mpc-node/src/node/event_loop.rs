@@ -18,19 +18,12 @@ use super::{
 use crate::error::MpcNodeError;
 
 pub struct MpcNodeEventLoop {
-    // the p2p node
     node: Swarm<MpcNodeBahavior>,
 
-    // The incoming message channel
-    // Sender: MpcNodeEventLoop
-    // Receiver: MpcNode
     node_incoming_message_sender: mpsc::Sender< Vec<u8> >,
     node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
+    command_receiver: mpsc::Receiver<MpcNodeCommand>,
 
-    // the command receiver
-    // Sender: MpcNodeClient
-    // Receiver: MpcNodeEventLoop
-    command_receiver: mpsc::Receiver<MpcNodeCommand>,    
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
     
@@ -95,7 +88,8 @@ impl MpcNodeEventLoop {
                 let local_peer_id = self.node.local_peer_id().clone();
                 self.listen_to_addr_sender
                     .send(address.clone().with(multiaddr::Protocol::P2p(local_peer_id.into())))
-                    .await;
+                    .await
+                    .unwrap();
                 eprintln!(
                     "Local node is listening on {:?}",
                     address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
@@ -105,7 +99,6 @@ impl MpcNodeEventLoop {
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
-                println!("Established Connection {:?} {:?}", peer_id, endpoint);
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
@@ -173,7 +166,7 @@ impl MpcNodeEventLoop {
                         },
 
                         MpcP2pRequest::RawMessage { payload } => {
-                            println!("Request Received StartJob");
+                            println!("Received Request RawMesage");
                             
                             // TODO: Handle errors correctly
                             self.node_incoming_message_sender

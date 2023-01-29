@@ -1,7 +1,7 @@
 use futures::StreamExt;
 
 use skw_mpc_node::{
-    node::{new_full_node, MpcP2pRequest},
+    node::{new_full_node},
     error::MpcNodeError,
     job_manager::JobManager,
 };
@@ -28,7 +28,6 @@ async fn main() -> Result<(), MpcNodeError> {
         .expect("Listen not to fail.");
     
     let local_addr = addr_receiver.select_next_some().await;
-    println!("GOT {:?}", local_addr);
 
     let sample_auth_header = AuthHeader::default();
     let sample_payload_header = PayloadHeader::new(
@@ -36,35 +35,18 @@ async fn main() -> Result<(), MpcNodeError> {
         PayloadType::KeyGen(None), 
         vec![
             (local_peer_id, local_addr.clone()),
-            ("12D3KooWJh5o5FZYSGgtcdfpkEn7qhRH9yyBb8fmNLUPmCZEGSgK".parse().unwrap(), "/ip4/10.0.0.3/tcp/53459".parse().unwrap()),
-            ("12D3KooWDwjLtB3XDHGy9BRyeaFEcJehzPRKFXaDjg86XJFBLnum".parse().unwrap(), "/ip4/10.0.0.3/tcp/53457".parse().unwrap()),
+            ("12D3KooWQK6mre8izZbyjESTKiQehCazsbkmGpKEB3i3hLDBLmHi".parse().unwrap(), "/ip4/10.0.0.3/tcp/62922".parse().unwrap()),
+            ("12D3KooWCzrW427aVmbixBYZ9nxEUbWbdrWMsv1M5wbM9j1kQ5h3".parse().unwrap(), "/ip4/10.0.0.3/tcp/62921".parse().unwrap()),
         ],
         local_peer_id,
-        1, 3,
+        2, 3,
     );
-
-    for (peer, peer_addr) in sample_payload_header.peers.iter() {
-        if peer_addr.clone() != local_addr.clone() {
-            client.dial(peer.clone(), peer_addr.clone())
-                .await
-                .expect("dailing to be not failed");
-            client.send_request( peer.clone(), 
-                MpcP2pRequest::StartJob { 
-                    auth_header: sample_auth_header.clone(),
-                    job_header: sample_payload_header.clone(), 
-                }
-            )
-                .await
-                .expect("request should be taken");
-        }
-    }
 
     let mut job_manager = JobManager::new(
         local_peer_id, &mut client
     );
-    
     // Finally, we spin up the job locally
-    job_manager.keygen_accept_new_job(sample_payload_header.clone());
+    job_manager.keygen_init_new_job(sample_auth_header, sample_payload_header).await;
 
     loop {
         futures::select! {
@@ -84,12 +66,17 @@ async fn main() -> Result<(), MpcNodeError> {
                 }
             },
             payload = job_manager.main_outgoing_receiver.select_next_some() => {
-                // println!("Outgoing sender msg received {:?}", payload);
+
+                println!("Handling outgoing start");
                 job_manager.handle_outgoing(payload).await;
+
+                println!("Handling outgoing done");
             },
             payload = main_message_receiver.select_next_some() => {
                 let payload = bincode::deserialize(&payload).unwrap();
                 job_manager.handle_incoming(payload).await;
+
+                println!("Handling incoming done");
             },
         }
     }

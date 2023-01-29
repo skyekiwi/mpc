@@ -72,8 +72,6 @@ impl MpcNodeClient {
             .await
             .expect("Command receiver not to be dropped.");
         let status = result_receiver.await.expect("Sender not to be dropped.");
-        println!("Got Response {:?}", status);
-
         status
     }
 }
