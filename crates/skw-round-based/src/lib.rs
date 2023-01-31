@@ -31,36 +31,6 @@
 //! in async environment (i.e. on green-thread), that's why the only method which capable of
 //! doing expensive operations is [proceed](StateMachine::proceed).
 //!
-//! ## How to execute round-based protocol
-//! To run round-based protocol you need only to provide incoming and outgoing channels.
-//! Then you can execute the protocol using [AsyncProtocol]:
-//! ```no_run
-//! # use futures::stream::{self, Stream, FusedStream};
-//! # use futures::sink::{self, Sink, SinkExt};
-//! # use skw_round_based::{Msg, StateMachine, AsyncProtocol};
-//! # struct M;
-//! # #[derive(Debug)] struct Error;
-//! # impl From<std::convert::Infallible> for Error {
-//! #    fn from(_: std::convert::Infallible) -> Error { Error }
-//! # }
-//! # trait Constructable { fn initial() -> Self; }
-//! fn incoming() -> impl Stream<Item=Result<Msg<M>, Error>> + FusedStream + Unpin {
-//!     // ...
-//! # stream::pending()
-//! }
-//! fn outgoing() -> impl Sink<Msg<M>, Error=Error> + Unpin {
-//!     // ...
-//! # sink::drain().with(|x| futures::future::ok(x))
-//! }
-//! # async fn execute_protocol<State>() -> Result<(), skw_round_based::async_runtime::Error<State::Err, Error, Error>>
-//! # where State: StateMachine<MessageBody = M, Err = Error> + Constructable + Send + 'static
-//! # {
-//! let output: State::Output = AsyncProtocol::new(State::initial(), incoming(), outgoing())
-//!     .run().await?;
-//! // ...
-//! # let _ = output; Ok(())
-//! # }
-//! ```
 //!
 //! Usually protocols assume that P2P messages are encrypted and every message is authenticated, in
 //! this case underlying sink and stream must meet such requirements.
