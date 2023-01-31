@@ -27,7 +27,7 @@ pub enum MpcNodeCommand {
 }
 
 pub struct MpcNodeClient {
-    pub command_sender: mpsc::Sender<MpcNodeCommand>
+    pub command_sender: mpsc::UnboundedSender<MpcNodeCommand>
 }
 
 impl MpcNodeClient {

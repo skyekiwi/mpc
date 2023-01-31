@@ -20,9 +20,9 @@ use crate::error::MpcNodeError;
 pub struct MpcNodeEventLoop {
     node: Swarm<MpcNodeBahavior>,
 
-    node_incoming_message_sender: mpsc::Sender< Vec<u8> >,
+    node_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
     node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
-    command_receiver: mpsc::Receiver<MpcNodeCommand>,
+    command_receiver: mpsc::UnboundedReceiver<MpcNodeCommand>,
 
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
@@ -34,10 +34,10 @@ impl MpcNodeEventLoop {
     pub fn new(
         node: Swarm<MpcNodeBahavior>,
 
-        node_incoming_message_sender: mpsc::Sender< Vec<u8> >,
+        node_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
         node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
     
-        command_receiver: mpsc::Receiver<MpcNodeCommand>,
+        command_receiver: mpsc::UnboundedReceiver<MpcNodeCommand>,
         
         listen_to_addr_sender: mpsc::Sender< Multiaddr >,
     ) -> Self {
@@ -106,7 +106,7 @@ impl MpcNodeEventLoop {
                 }
             }
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                println!("{:?} Disconnected", peer_id);
+                // println!("{:?} Disconnected", peer_id);
                 // TODO: handle connect close
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
@@ -159,21 +159,17 @@ impl MpcNodeEventLoop {
                                     .unwrap(); // TODO: this unwrap is not correct
 
                                 self.node_incoming_job_sender
-                                    .send(job_header )
-                                    .await
+                                    .try_send(job_header )
                                     .expect("node_incoming_job_sender should not be dropped. qed.");
                             }
                         },
 
                         MpcP2pRequest::RawMessage { payload } => {
-                            println!("Received Request RawMesage");
-                            
-                            // TODO: Handle errors correctly
+                            // println!("Received Request RawMesage");
                             self.node_incoming_message_sender
-                                .send( payload )
-                                .await
+                                .unbounded_send( payload )
                                 .expect("node_incoming_job_sender should not be dropped. qed.");
-                            
+
                             self.node
                                 .behaviour_mut()
                                 .request_response

@@ -29,7 +29,7 @@ pub fn new_full_node() -> Result<(
 
     mpsc::Receiver< Multiaddr >,
     mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
-    mpsc::Receiver< Vec<u8> >, // main message incoming channel
+    mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
 ), MpcNodeError> {
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
@@ -77,14 +77,14 @@ pub fn new_full_node() -> Result<(
     };
 
     // the main message INCOMING channel 
-    let (node_incoming_message_sender, node_incoming_message_receiver) = mpsc::channel(0);
+    let (node_incoming_message_sender, node_incoming_message_receiver) = mpsc::unbounded();
     
     // the new job notifier
     let (node_incoming_job_sender, node_incoming_job_receiver) = mpsc::channel(0);
 
     // the main outgoing channel
     // we give it one buffer so that outgoing can be synced
-    let (command_sender, command_receiver) = mpsc::channel(1);
+    let (command_sender, command_receiver) = mpsc::unbounded();
 
     let (addr_sender, addr_receiver) = mpsc::channel(0);
 

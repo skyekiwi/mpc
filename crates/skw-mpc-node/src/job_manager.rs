@@ -22,8 +22,8 @@ pub struct JobManager<'node> {
     // Protocol IO
     protocol_incoming_channel: HashMap<CryptoHash, mpsc::Sender<Result<Payload<KeyGenMessage>, std::io::Error>>>,
     
-    pub main_outgoing_sender: mpsc::Sender<Payload<KeyGenMessage>>,
-    pub main_outgoing_receiver: mpsc::Receiver<Payload<KeyGenMessage>>,
+    pub main_outgoing_sender: mpsc::UnboundedSender<Payload<KeyGenMessage>>,
+    pub main_outgoing_receiver: mpsc::UnboundedReceiver<Payload<KeyGenMessage>>,
 }
 
 impl<'node> JobManager<'node> {
@@ -31,7 +31,7 @@ impl<'node> JobManager<'node> {
         local_peer_id: PeerId,
         client: &'node mut MpcNodeClient,
     ) -> Self {
-        let (main_outgoing_sender, main_outgoing_receiver) = mpsc::channel(0);
+        let (main_outgoing_sender, main_outgoing_receiver) = mpsc::unbounded();
         Self {
             local_peer_id,
             headers: Default::default(),
@@ -50,7 +50,7 @@ impl<'node> JobManager<'node> {
     ) {
         for (peer, peer_addr) in new_header.clone().peers.iter() {
 
-            println!("Sending Out to {:?}", peer);
+            // println!("Sending Out to {:?}", peer);
     
             if peer.clone() != self.local_peer_id.clone() {
                 self.client.dial(peer.clone(), peer_addr.clone())
@@ -106,7 +106,7 @@ impl<'node> JobManager<'node> {
         payload: Payload<KeyGenMessage>,
     ) {
 
-        println!("Outgoing {:?} {:?}", payload.payload_header, payload.body.receiver);
+        // println!("Outgoing {:?} {:?} {:?}", payload.payload_header, payload.body, payload.body.receiver);
         let local_peer_id = self.local_peer_id.clone();
 
         match payload.body.receiver {
@@ -156,17 +156,16 @@ impl<'node> JobManager<'node> {
     pub async fn handle_incoming(&mut self,
         payload: Payload<KeyGenMessage>,
     ) {
-        println!("Incoming Payload {:?}", payload.payload_header);
+        // println!("Incoming Payload {:?}", payload.payload_header);
         let job_id = &payload.payload_header.payload_id;
         let channel = self.protocol_incoming_channel.get_mut(job_id);
         match channel {
             Some(pipe) => {
-                println!("Incoming channel found, forwarding msg to state machine");
+                // println!("Incoming channel found, forwarding msg to state machine");
 
-                pipe.send(Ok(payload))
-                    .await
-                    .unwrap();
-                println!("msg received by state machine");
+                pipe.try_send(Ok(payload))
+                    .expect("protocol_incoming_channels should not be dropped");
+                // println!("msg received by state machine");
             },
             None => {
                 panic!("unknown job");
