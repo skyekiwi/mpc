@@ -16,7 +16,7 @@ async fn main() -> Result<(), MpcNodeError> {
         p2p_node_event_loop,
 
         mut addr_receiver,
-        mut job_assignment_receiver,
+        _job_assignment_receiver,
         mut main_message_receiver,
     ) = new_full_node()?; 
     
@@ -31,12 +31,12 @@ async fn main() -> Result<(), MpcNodeError> {
 
     let sample_auth_header = AuthHeader::default();
     let sample_payload_header = PayloadHeader::new(
-        [0u8; 32], 
+        [1u8; 32], 
         PayloadType::KeyGen(None), 
         vec![
             (local_peer_id, local_addr.clone()),
-            ("12D3KooWQK6mre8izZbyjESTKiQehCazsbkmGpKEB3i3hLDBLmHi".parse().unwrap(), "/ip4/10.0.0.3/tcp/62922".parse().unwrap()),
-            ("12D3KooWCzrW427aVmbixBYZ9nxEUbWbdrWMsv1M5wbM9j1kQ5h3".parse().unwrap(), "/ip4/10.0.0.3/tcp/62921".parse().unwrap()),
+            ("12D3KooWRiubvbkSNahNpax6ahvye2GPqPVevZn2y9HRX6FH3Rgb".parse().unwrap(), "/ip4/10.0.0.3/tcp/61254".parse().unwrap()),
+            ("12D3KooWC8LTy1H4gtbZ6BYupELBUAPzAkWTcBzBgifbrGL5zNdH".parse().unwrap(), "/ip4/10.0.0.3/tcp/61255".parse().unwrap()),
         ],
         local_peer_id,
         2, 3,
@@ -50,33 +50,11 @@ async fn main() -> Result<(), MpcNodeError> {
 
     loop {
         futures::select! {
-            payload_header = job_assignment_receiver.select_next_some() => {
-                match payload_header.payload_type {
-                    PayloadType::KeyGen(_maybe_existing_key) => {
-                        job_manager.keygen_accept_new_job(
-                            payload_header.clone(), 
-                        );
-                    },
-                    PayloadType::Signing(_) => {
-                        unimplemented!()
-                    },
-                    PayloadType::KeyRefresh => {
-                        unimplemented!()
-                    }
-                }
-            },
             payload = job_manager.main_outgoing_receiver.select_next_some() => {
-
-                println!("Handling outgoing start");
                 job_manager.handle_outgoing(payload).await;
-
-                println!("Handling outgoing done");
             },
-            payload = main_message_receiver.select_next_some() => {
-                let payload = bincode::deserialize(&payload).unwrap();
-                job_manager.handle_incoming(payload).await;
-
-                println!("Handling incoming done");
+            raw_payload = main_message_receiver.select_next_some() => {
+                job_manager.handle_incoming(&raw_payload).await;
             },
         }
     }

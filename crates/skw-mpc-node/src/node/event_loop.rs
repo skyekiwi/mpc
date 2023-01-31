@@ -79,9 +79,6 @@ impl MpcNodeEventLoop {
             MpcNodeBahaviorEvent, ConnectionHandlerUpgrErr<std::io::Error>,
         >,
     ) {
-
-        // eprintln!("{:?}", event);
-
         match event {
             // general network
             SwarmEvent::NewListenAddr { address, .. } => {
@@ -112,7 +109,6 @@ impl MpcNodeEventLoop {
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
-
                         eprintln!("Dialing Error {:?}", error);
                         let _ = sender.send(Err(MpcNodeError::FailToDial));
                     }

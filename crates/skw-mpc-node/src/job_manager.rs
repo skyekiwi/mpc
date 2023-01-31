@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use futures::{SinkExt, channel::mpsc};
+use futures::channel::mpsc;
 
-use libp2p::{PeerId, Multiaddr};
+use libp2p::{PeerId};
 use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, AuthHeader};
 use skw_round_based::{async_runtime::AsyncProtocol, Msg};
 
 use skw_mpc_protocol::gg20::state_machine::{keygen, sign};
 
-use crate::node::{MpcNodeClient, MpcP2pRequest};
+use crate::{node::{MpcNodeClient, MpcP2pRequest}, serde_support::{decode_payload, encode_payload}};
 
 type KeyGenMessage = Msg<keygen::ProtocolMessage>;
 
@@ -124,7 +124,7 @@ impl<'node> JobManager<'node> {
                 payload_out.payload_header.sender = local_peer_id;
                 self.client
                     .send_request(to_peer.0, MpcP2pRequest::RawMessage { 
-                        payload: bincode::serialize( &payload_out ).unwrap()
+                        payload: encode_payload(&payload_out)
                      })
                     .await
                     .expect("client should not be dropped, node should take in this request");
@@ -142,7 +142,7 @@ impl<'node> JobManager<'node> {
                         payload_out.payload_header.sender = local_peer_id;
                         self.client
                             .send_request(peer.0, MpcP2pRequest::RawMessage { 
-                                payload: bincode::serialize(&payload_out).unwrap() 
+                                payload: encode_payload(&payload_out)
                             })
                             .await
                             .unwrap();
@@ -154,18 +154,15 @@ impl<'node> JobManager<'node> {
     }
 
     pub async fn handle_incoming(&mut self,
-        payload: Payload<KeyGenMessage>,
+        payload: &[u8],
     ) {
-        // println!("Incoming Payload {:?}", payload.payload_header);
+        let payload: Payload<KeyGenMessage> = decode_payload(payload);
         let job_id = &payload.payload_header.payload_id;
         let channel = self.protocol_incoming_channel.get_mut(job_id);
         match channel {
             Some(pipe) => {
-                // println!("Incoming channel found, forwarding msg to state machine");
-
                 pipe.try_send(Ok(payload))
                     .expect("protocol_incoming_channels should not be dropped");
-                // println!("msg received by state machine");
             },
             None => {
                 panic!("unknown job");

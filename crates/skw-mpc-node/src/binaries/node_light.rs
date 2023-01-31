@@ -48,17 +48,14 @@ async fn main() -> Result<(), MpcNodeError> {
                 }
             },
             payload = job_manager.main_outgoing_receiver.select_next_some() => {
-                println!("Handling outgoing start");
-
+                println!("Client Handling outgoing start, msg to {:?}", payload.body.receiver);
                 job_manager.handle_outgoing(payload).await;
-
                 println!("Handling outgoing done");
             },
-            payload = main_message_receiver.select_next_some() => {
-                let payload = bincode::deserialize(&payload).unwrap();
-                job_manager.handle_incoming(payload).await;
-
-                println!("Handling incoming done");
+            raw_payload = main_message_receiver.select_next_some() => {
+                println!("cleint Handling incoming start", );
+                job_manager.handle_incoming(&raw_payload).await;
+                println!("client Handling incoming done");
             },
         }
     }

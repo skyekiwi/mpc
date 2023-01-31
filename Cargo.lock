@@ -5050,6 +5050,7 @@ dependencies = [
  "getrandom 0.2.7",
  "libp2p",
  "serde",
+ "serde_json",
  "skw-mpc-payload",
  "skw-mpc-protocol",
  "skw-mpc-storage",
