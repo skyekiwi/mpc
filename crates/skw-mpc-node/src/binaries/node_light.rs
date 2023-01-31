@@ -1,4 +1,4 @@
-use futures::StreamExt;
+use futures::{StreamExt, channel::mpsc};
 
 use skw_mpc_node::{
     node::new_full_node,
@@ -6,6 +6,7 @@ use skw_mpc_node::{
     job_manager::JobManager,
 };
 use skw_mpc_payload::header::PayloadType;
+use skw_mpc_storage::db::{default_mpc_storage_opt};
 
 #[async_std::main]
 async fn main() -> Result<(), MpcNodeError> {
@@ -29,7 +30,9 @@ async fn main() -> Result<(), MpcNodeError> {
     
     let _local_addr = addr_receiver.select_next_some().await;
 
-    let mut job_manager = JobManager::new(local_peer_id, &mut client);
+    let (storage_config, storage_in_sender) = default_mpc_storage_opt("mpc_storage", false);
+    let mut job_manager = JobManager::new(local_peer_id, &mut client, storage_in_sender);
+
     loop {
         futures::select! {
             payload_header = job_assignment_receiver.select_next_some() => {

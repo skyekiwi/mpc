@@ -21,7 +21,7 @@ pub mod skw_mpc_p2p_behavior {
     use futures::prelude::*;
     use libp2p::core::upgrade::{read_length_prefixed, write_length_prefixed, ProtocolName};
     use libp2p::request_response::Codec;
-    use skw_mpc_payload::{AuthHeader, PayloadHeader};
+    use skw_mpc_payload::{AuthHeader, PayloadHeader, CryptoHash};
 
     use crate::error::MpcNodeError;
 
@@ -38,8 +38,11 @@ pub mod skw_mpc_p2p_behavior {
             job_header: PayloadHeader,
         },
         RawMessage {
-            payload: Vec<u8>,
+            payload: Vec<u8>, // Serialized Payload
         },
+        RequestPartialSignature {
+            payload_header_id: CryptoHash,
+        }
     }
 
     // Serialized Form of raw response
@@ -51,6 +54,9 @@ pub mod skw_mpc_p2p_behavior {
         RawMessage {
             status: Result<(), MpcNodeError>,
             // NOTE: do we have any response to this? 
+        },
+        RequestPartialSignature {
+            status: Result<Vec<u8>, MpcNodeError>,
         }
     }
 
@@ -91,7 +97,7 @@ pub mod skw_mpc_p2p_behavior {
         where
             T: AsyncRead + Unpin + Send,
         {
-            let vec = read_length_prefixed(io, 1024).await?; // update transfer maximum
+            let vec = read_length_prefixed(io, 10_240).await?; // update transfer maximum
 
             if vec.is_empty() {
                 return Err(io::ErrorKind::UnexpectedEof.into());

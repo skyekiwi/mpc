@@ -1,123 +1,292 @@
-use crate::types::{MpcStorageError, PENDING_TX_THRESHOLD};
-
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::types::{MpcStorageError,};
 
 use rusty_leveldb::{DB, Options};
+use futures::{channel::{mpsc, oneshot}, StreamExt};
 
 /// Open up a levelDB instance from multiple locations
 /// db_in_memory - a levelDB in memory
 /// db_on_disk - a levelDB pointed to some local file
 
-pub struct MpcStorage {
-    db: Rc<RefCell<rusty_leveldb::DB>>,
-    pending_tx: u64,
-}
+type CryptoHash = [u8; 32];
 
-impl MpcStorage {
-    pub fn new(
-        db_name_or_path: &str,
-        in_memory: bool,
-    ) -> Result<Self, MpcStorageError> {
-        match in_memory {
-            false => {
-                Ok(Self {
-                    db: Rc::new(RefCell::new(DB::open(db_name_or_path, Options::default())
-                        .map_err(|_| MpcStorageError::FailToOpenDB)?)),
-                    pending_tx: 0,
-                })
-            },
-            true => {
-                Ok(Self {
-                    db: Rc::new(RefCell::new(DB::open(db_name_or_path, rusty_leveldb::in_memory())
-                        .map_err(|_| MpcStorageError::FailToOpenDB)?)),
-                    pending_tx: 0,
-                })
-            }
-
-        }
-    }
-
-    pub fn put(&mut self, k: &[u8], v: &[u8]) -> Result<(), MpcStorageError> {
-        self.pending_tx += 1;
-        self.db.borrow_mut().put(k, v).map_err(|_| MpcStorageError::FailToWriteDB)?;
-
-        if self.pending_tx >= PENDING_TX_THRESHOLD {
-            self.flush()?;
-            self.pending_tx = 0;
-        }
-
-        Ok(())
-
-    }
-
-    pub fn delete(&mut self, k: &[u8]) -> Result<(), MpcStorageError> {
-        self.pending_tx += 1;
-
-        self.db.borrow_mut().delete(k).map_err(|_| MpcStorageError::FailToDeleteDB)?;
-        if self.pending_tx >= PENDING_TX_THRESHOLD {
-            self.flush()?;
-            self.pending_tx = 0;
-        }
-
-        Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<(), MpcStorageError> {
-        self.db.borrow_mut().flush().map_err(|_| MpcStorageError::FailToFlushDB)
-    }
-
-    pub fn get(&mut self, k: &[u8]) -> Result<Vec<u8>, MpcStorageError> {
-        match self.db.borrow_mut().get(k) {
-            Some(v) => Ok(v),
-            None => Err(MpcStorageError::KeyNotInDB)
-        }
-    }
-
-    pub fn close(&mut self) -> Result<(), MpcStorageError> {
-        self.db.borrow_mut().close().map_err(|_| MpcStorageError::FailToCloseDB)
-    }
-}
- 
-#[test]
-fn in_memory() {
-    let mut db = MpcStorage::new("test", true).unwrap();
-
-    db.put(b"test", b"value").unwrap();
-    assert_eq!(db.get(b"test"), Ok(b"value".to_vec()));
-
-    db.delete(b"test").unwrap();
-    assert_eq!(db.get(b"test"), Err(MpcStorageError::KeyNotInDB));
-
-    db.flush().expect("cannot fail");
-}
-
-#[test]
-fn on_disk() {
-
-    // OP1
-    {
-        let mut db = MpcStorage::new("mock", false).unwrap();
-
-        db.put(b"test", b"value").unwrap();
-        db.put(b"test2", b"value2").unwrap();
+#[derive(Debug)]
+pub enum DBOpIn  {
+    WriteToDB {
+        key: CryptoHash,
+        value: Vec<u8>,
         
-        assert_eq!(db.get(b"test"), Ok(b"value".to_vec()));
-        assert_eq!(db.get(b"test2"), Ok(b"value2".to_vec()));
+        result_sender: oneshot::Sender<DBOpOut>,
+    },
 
+    ReadFromDB {
+        key: CryptoHash,
 
-        db.delete(b"test").unwrap();
-        assert_eq!(db.get(b"test"), Err(MpcStorageError::KeyNotInDB));
-        assert_eq!(db.get(b"test2"), Ok(b"value2".to_vec()));
+        result_sender: oneshot::Sender<DBOpOut>,
+    },
 
-        // When DB go out of scope, it will be automatically dropped & flush to DB
+    DeleteFromDB {
+        key: CryptoHash,
+
+        result_sender: oneshot::Sender<DBOpOut>,
+    },
+
+    Shutdown {
+        result_sender: oneshot::Sender<DBOpOut>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum DBOpOut {
+    WriteToDB {
+        status: Result<(), MpcStorageError>,
+    },
+
+    ReadFromDB {
+        status: Result<Vec<u8>, MpcStorageError>,
+    },
+
+    DeleteFromDB {
+        status: Result<(), MpcStorageError>,
+    },
+
+    Shutdown {
+        status: Result<(), MpcStorageError>,
+    },
+}
+
+pub struct MpcStorageConfig {
+    db_name_or_path: &'static str,
+    in_memory: bool,
+
+    db_in_receiver: mpsc::Receiver<DBOpIn>,
+}
+
+pub fn default_mpc_storage_opt(
+    db_name_or_path: &'static str,
+    in_memory: bool
+) -> (
+    MpcStorageConfig,
+    mpsc::Sender<DBOpIn>,
+) {
+    // we want the db op to be executed as long as they are avalaible
+    let (db_in_sender, db_in_receiver) = mpsc::channel(0);
+    (
+        MpcStorageConfig {
+            db_name_or_path, in_memory,
+            db_in_receiver
+        },
+
+        db_in_sender, 
+    )
+}
+
+pub async fn run_db_server(
+    mut config: MpcStorageConfig
+) {
+    let opt = {
+        match config.in_memory {
+            false => Options::default(),
+            true => rusty_leveldb::in_memory()
+        }
+    };
+
+    // TODO: this unwrap is not correct
+    let mut db = DB::open(config.db_name_or_path, opt)
+        .map_err(|_| MpcStorageError::FailToOpenDB)
+        .unwrap();
+
+    async_std::task::spawn(async move {
+        let mut graceful_terminate = false;
+        loop {
+            if graceful_terminate {
+                break;
+            }
+            let db_opt_in = config.db_in_receiver.select_next_some().await;
+            match db_opt_in {
+                DBOpIn::WriteToDB { key, value, result_sender } => {
+                    let status = db.put(&key[..], &value[..])
+                        .map_err(|_| MpcStorageError::FailToWriteDB);
+                    
+                    result_sender
+                        .send(DBOpOut::WriteToDB { status })
+                        .expect("db out receiver should not been dropped")
+                },
+                DBOpIn::ReadFromDB { key, result_sender } => {
+                    let v = db.get(&key);
+                    let status = match v {
+                        Some(v) => Ok(v),
+                        None => Err(MpcStorageError::KeyNotInDB)
+                    };
+                    result_sender
+                        .send(DBOpOut::ReadFromDB { status })
+                        .expect("db out receiver should not been dropped")
+                },
+                DBOpIn::DeleteFromDB { key, result_sender } => {
+                    let status = db.delete(&key)
+                        .map_err(|_| MpcStorageError::KeyNotInDB);
+                    result_sender
+                        .send(DBOpOut::DeleteFromDB { status })
+                        .expect("db out receiver should not been dropped")
+                },
+                DBOpIn::Shutdown { result_sender } => {
+                    let flush_status = db.flush()
+                        .map_err(|_| MpcStorageError::FailToFlushDB);
+                    let shutdown_status = db.close()
+                        .map_err(|_| MpcStorageError::FailToCloseDB);
+    
+                    graceful_terminate = true;
+                    result_sender
+                        .send(DBOpOut::Shutdown { status: flush_status.and(shutdown_status) })
+                        .expect("db out receiver should not been dropped")
+                },
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use futures::SinkExt;
+    
+    #[async_std::test]
+    async fn in_memory() {
+        let (config, mut in_pipe) = default_mpc_storage_opt("in_memory", true);
+        async_std::task::spawn(run_db_server(config));
+    
+        { 
+            let (i, o) = oneshot::channel();
+            in_pipe
+                .send(DBOpIn::WriteToDB {
+                    key: [0u8; 32],
+                    value: vec![1, 2, 3],
+                    result_sender: i,
+                })
+                .await
+                .expect("receiver not dropped");
+            let res = o.await;
+            println!("{:?}", res.unwrap());
+        }
+
+        {
+            let (i, o) = oneshot::channel();
+            in_pipe.send(DBOpIn::WriteToDB {
+                key: [1u8; 32],
+                value: vec![4, 5, 6],
+                result_sender: i,
+            })
+                .await
+                .expect("receiver not dropped");
+            let res = o.await;
+            println!("{:?}", res.unwrap());
+        }
+
+        {
+            let (i, o) = oneshot::channel();
+            in_pipe.send(DBOpIn::ReadFromDB {
+                key: [0u8; 32],
+                result_sender: i,
+            })
+                .await
+                .expect("receiver not dropped");
+            let res = o.await;
+            println!("{:?}", res.unwrap());
+        }
+
+        {
+            let (i, o) = oneshot::channel();
+            in_pipe.send(DBOpIn::Shutdown {
+                result_sender: i,
+            })
+                .await
+                .expect("receiver not dropped");
+            let res = o.await;
+            println!("{:?}", res.unwrap());
+        }
     }
 
-    // OP2
-    {
-        let mut db = MpcStorage::new("mock", false).unwrap();
+    #[async_std::test]
+    async fn on_disk() {
+        // Run #1
+        {
+            let (config, mut in_pipe) = default_mpc_storage_opt("on_disk", false);
+            async_std::task::spawn(run_db_server(config));
+            { 
+                let (i, o) = oneshot::channel();
+                in_pipe
+                    .send(DBOpIn::WriteToDB {
+                        key: [0u8; 32],
+                        value: vec![1, 2, 3],
+                        result_sender: i,
+                    })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+    
+            {
+                let (i, o) = oneshot::channel();
+                in_pipe.send(DBOpIn::WriteToDB {
+                    key: [1u8; 32],
+                    value: vec![4, 5, 6],
+                    result_sender: i,
+                })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+    
+            {
+                let (i, o) = oneshot::channel();
+                in_pipe.send(DBOpIn::ReadFromDB {
+                    key: [0u8; 32],
+                    result_sender: i,
+                })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+    
+            {
+                let (i, o) = oneshot::channel();
+                in_pipe.send(DBOpIn::Shutdown {
+                    result_sender: i,
+                })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+        }
 
-        assert_eq!(db.get(b"test"), Err(MpcStorageError::KeyNotInDB));
-        assert_eq!(db.get(b"test2"), Ok(b"value2".to_vec()));
+        {
+            let (config, mut in_pipe) = default_mpc_storage_opt("mock", false);
+            async_std::task::spawn(run_db_server(config));
+            {
+                let (i, o) = oneshot::channel();
+                in_pipe.send(DBOpIn::ReadFromDB {
+                    key: [0u8; 32],
+                    result_sender: i,
+                })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+    
+            {
+                let (i, o) = oneshot::channel();
+                in_pipe.send(DBOpIn::Shutdown {
+                    result_sender: i,
+                })
+                    .await
+                    .expect("receiver not dropped");
+                let res = o.await;
+                println!("{:?}", res.unwrap());
+            }
+        }
     }
 }

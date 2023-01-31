@@ -174,6 +174,18 @@ impl MpcNodeEventLoop {
                                 })
                                 .unwrap(); // TODO: this unwrap is not correct
                         },
+                        MpcP2pRequest::RequestPartialSignature { .. } => {
+                            // Query DB for the partial sig
+                            let partial_sig = [0u8; 3000];
+                            
+                            self.node
+                                .behaviour_mut()
+                                .request_response
+                                .send_response(channel, MpcP2pResponse::RequestPartialSignature { 
+                                    status: Ok(partial_sig.to_vec())
+                                })
+                                .unwrap(); // TODO: this unwrap is not corrects
+                        }
                     }
                 }
 

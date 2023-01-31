@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 
-use futures::channel::mpsc;
+use futures::{channel::mpsc, SinkExt};
 
 use libp2p::{PeerId};
 use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, AuthHeader};
+use skw_mpc_storage::db::DBOpIn;
 use skw_round_based::{async_runtime::AsyncProtocol, Msg};
 
 use skw_mpc_protocol::gg20::state_machine::{keygen, sign};
 
-use crate::{node::{MpcNodeClient, MpcP2pRequest}, serde_support::{decode_payload, encode_payload}};
+use crate::{
+    node::{MpcNodeClient, MpcP2pRequest}, 
+    serde_support::{decode_payload, encode_payload}
+};
 
 type KeyGenMessage = Msg<keygen::ProtocolMessage>;
 
@@ -18,6 +22,9 @@ pub struct JobManager<'node> {
     headers: HashMap<CryptoHash, PayloadHeader>, // Do we really need this?
 
     client: &'node mut MpcNodeClient,
+    
+    // handle side effects
+    storage_in_sender: mpsc::Sender<DBOpIn>, 
 
     // Protocol IO
     protocol_incoming_channel: HashMap<CryptoHash, mpsc::Sender<Result<Payload<KeyGenMessage>, std::io::Error>>>,
@@ -30,13 +37,17 @@ impl<'node> JobManager<'node> {
     pub fn new(
         local_peer_id: PeerId,
         client: &'node mut MpcNodeClient,
+        storage_in_sender: mpsc::Sender<DBOpIn>, 
     ) -> Self {
         let (main_outgoing_sender, main_outgoing_receiver) = mpsc::unbounded();
+
         Self {
             local_peer_id,
             headers: Default::default(),
 
             client,
+
+            storage_in_sender,
 
             protocol_incoming_channel: Default::default(),
             main_outgoing_sender,
@@ -73,7 +84,9 @@ impl<'node> JobManager<'node> {
 
     pub fn keygen_accept_new_job(&mut self, new_header: PayloadHeader) {
         let job_id = new_header.clone().payload_id;
+
         let local_peer_id = self.local_peer_id.clone();
+        let storage_in_sender = self.storage_in_sender.clone();
 
         let (incoming_sender, incoming_receiver) = mpsc::channel(2);
         let outgoing_sender = self.main_outgoing_sender.clone();
@@ -98,6 +111,12 @@ impl<'node> JobManager<'node> {
                 .run()
                 .await; // TODO: discard all error?
 
+            // storage_in_sender.send(DBOpIn::WriteToDB { 
+            //     key: (), 
+            //     value: (), 
+            //     result_sender: () 
+            // })
+            //     .await;
             println!("{:?}", output);
         });
     }

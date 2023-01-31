@@ -3322,9 +3322,9 @@ dependencies = [
 
 [[package]]
 name = "rusty-leveldb"
-version = "1.0.4"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9665f8057d9055a2c2ab8a978abe92a07285e3d8408abbb2f06caa7195045d1"
+checksum = "04c67700d4731d7c35c914a844dba95ae6689a419a576433c745b76757a555db"
 dependencies = [
  "crc",
  "errno",
@@ -3609,7 +3609,10 @@ dependencies = [
 name = "skw-mpc-storage"
 version = "0.1.7"
 dependencies = [
+ "async-std",
+ "futures",
  "rusty-leveldb",
+ "serde",
 ]
 
 [[package]]
