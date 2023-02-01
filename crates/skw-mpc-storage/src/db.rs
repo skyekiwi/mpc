@@ -55,14 +55,14 @@ pub enum DBOpOut {
 }
 
 pub struct MpcStorageConfig {
-    db_name_or_path: &'static str,
+    db_name_or_path: String,
     in_memory: bool,
 
     db_in_receiver: mpsc::Receiver<DBOpIn>,
 }
 
 pub fn default_mpc_storage_opt(
-    db_name_or_path: &'static str,
+    db_name_or_path: String,
     in_memory: bool
 ) -> (
     MpcStorageConfig,
@@ -80,7 +80,7 @@ pub fn default_mpc_storage_opt(
     )
 }
 
-pub async fn run_db_server(
+pub fn run_db_server(
     mut config: MpcStorageConfig
 ) {
     let opt = {
@@ -134,6 +134,7 @@ pub async fn run_db_server(
                     let shutdown_status = db.close()
                         .map_err(|_| MpcStorageError::FailToCloseDB);
     
+                    // TODO: make sure no err before shutdown
                     graceful_terminate = true;
                     result_sender
                         .send(DBOpOut::Shutdown { status: flush_status.and(shutdown_status) })
@@ -151,8 +152,9 @@ mod test {
     
     #[async_std::test]
     async fn in_memory() {
-        let (config, mut in_pipe) = default_mpc_storage_opt("in_memory", true);
-        async_std::task::spawn(run_db_server(config));
+        let (config, mut in_pipe) = default_mpc_storage_opt("in_memory".to_string(), true);
+        // async_std::task::spawn();
+        run_db_server(config);
     
         { 
             let (i, o) = oneshot::channel();
@@ -209,8 +211,9 @@ mod test {
     async fn on_disk() {
         // Run #1
         {
-            let (config, mut in_pipe) = default_mpc_storage_opt("on_disk", false);
-            async_std::task::spawn(run_db_server(config));
+            let (config, mut in_pipe) = default_mpc_storage_opt("mock".to_string(), false);
+            run_db_server(config);
+
             { 
                 let (i, o) = oneshot::channel();
                 in_pipe
@@ -263,8 +266,8 @@ mod test {
         }
 
         {
-            let (config, mut in_pipe) = default_mpc_storage_opt("mock", false);
-            async_std::task::spawn(run_db_server(config));
+            let (config, mut in_pipe) = default_mpc_storage_opt("mock".to_string(), false);
+            run_db_server(config);
             {
                 let (i, o) = oneshot::channel();
                 in_pipe.send(DBOpIn::ReadFromDB {

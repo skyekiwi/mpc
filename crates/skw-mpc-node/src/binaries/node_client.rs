@@ -6,6 +6,7 @@ use skw_mpc_node::{
     job_manager::JobManager,
 };
 use skw_mpc_payload::{PayloadHeader, header::PayloadType, AuthHeader};
+use skw_mpc_storage::db::{default_mpc_storage_opt, run_db_server};
 
 #[async_std::main]
 async fn main() -> Result<(), MpcNodeError> {
@@ -35,15 +36,21 @@ async fn main() -> Result<(), MpcNodeError> {
         PayloadType::KeyGen(None), 
         vec![
             (local_peer_id, local_addr.clone()),
-            ("12D3KooWRiubvbkSNahNpax6ahvye2GPqPVevZn2y9HRX6FH3Rgb".parse().unwrap(), "/ip4/10.0.0.3/tcp/61254".parse().unwrap()),
-            ("12D3KooWC8LTy1H4gtbZ6BYupELBUAPzAkWTcBzBgifbrGL5zNdH".parse().unwrap(), "/ip4/10.0.0.3/tcp/61255".parse().unwrap()),
+            ("12D3KooWLRFXzFnCtiQhkAYc1Gr166wLZyUqz4kzHuN4RjoizXyM".parse().unwrap(), "/ip4/10.0.0.3/tcp/52202".parse().unwrap()),
+            ("12D3KooWBJNxkf5aMN39UD2ADsLZv5HJdZhBKyMLL38fzEGNEE3Q".parse().unwrap(), "/ip4/10.0.0.3/tcp/52201".parse().unwrap()),
         ],
         local_peer_id,
         2, 3,
     );
 
+    // spin up the DB server event loop
+    let (storage_config, storage_in_sender) = default_mpc_storage_opt(
+        format!("mpc_storage-{:?}", local_peer_id), false
+    );    
+    run_db_server(storage_config);
+
     let mut job_manager = JobManager::new(
-        local_peer_id, &mut client
+        local_peer_id, &mut client, storage_in_sender
     );
     // Finally, we spin up the job locally
     job_manager.keygen_init_new_job(sample_auth_header, sample_payload_header).await;

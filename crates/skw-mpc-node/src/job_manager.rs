@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use futures::{channel::mpsc, SinkExt};
+use futures::{channel::{mpsc, oneshot}, SinkExt};
 
 use libp2p::{PeerId};
 use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, AuthHeader};
@@ -11,7 +11,7 @@ use skw_mpc_protocol::gg20::state_machine::{keygen, sign};
 
 use crate::{
     node::{MpcNodeClient, MpcP2pRequest}, 
-    serde_support::{decode_payload, encode_payload}
+    serde_support::{decode_payload, encode_payload, encode_key}
 };
 
 type KeyGenMessage = Msg<keygen::ProtocolMessage>;
@@ -86,7 +86,7 @@ impl<'node> JobManager<'node> {
         let job_id = new_header.clone().payload_id;
 
         let local_peer_id = self.local_peer_id.clone();
-        let storage_in_sender = self.storage_in_sender.clone();
+        let mut storage_in_sender = self.storage_in_sender.clone();
 
         let (incoming_sender, incoming_receiver) = mpsc::channel(2);
         let outgoing_sender = self.main_outgoing_sender.clone();
@@ -111,13 +111,18 @@ impl<'node> JobManager<'node> {
                 .run()
                 .await; // TODO: discard all error?
 
-            // storage_in_sender.send(DBOpIn::WriteToDB { 
-            //     key: (), 
-            //     value: (), 
-            //     result_sender: () 
-            // })
-            //     .await;
             println!("{:?}", output);
+
+            let (result_sender, result_receiver) = oneshot::channel();
+            storage_in_sender.send(DBOpIn::WriteToDB { 
+                key: new_header.payload_id, 
+                value: encode_key(&output.unwrap()), 
+                result_sender: result_sender
+            })
+                .await
+                .expect("db result receiver not to be dropped");
+            let result = result_receiver.await;
+            println!("Result for db write {:?}", result);
         });
     }
 

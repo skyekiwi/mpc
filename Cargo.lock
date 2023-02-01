@@ -3563,6 +3563,7 @@ dependencies = [
  "bincode",
  "blake2",
  "clap 3.2.23",
+ "curv-kzen",
  "futures",
  "getrandom 0.2.7",
  "libp2p",
