@@ -1,74 +1,63 @@
-use std::fmt::format;
-
-use futures::{StreamExt, channel::mpsc};
-
+use futures::{channel::{mpsc, oneshot}, SinkExt};
 use skw_mpc_node::{
-    node::new_full_node,
-    error::MpcNodeError,
-    job_manager::JobManager,
+    node::{node_main_event_loop, ClientRequest, NodeClient},
+    error::MpcNodeError
 };
-use skw_mpc_payload::header::PayloadType;
-use skw_mpc_storage::db::{default_mpc_storage_opt, run_db_server};
+use skw_mpc_payload::{PayloadHeader, header::PayloadType};
 
 #[async_std::main]
 async fn main() -> Result<(), MpcNodeError> {
-    let (
-        local_peer_id,
-        
-        mut client,
-        p2p_node_event_loop,
-        
-        mut addr_receiver,
-        mut job_assignment_receiver,
-        mut main_message_receiver,
-    ) = new_full_node()?; 
-    
-    // Spin up the Swarm event loop
-    let _event_loop_jh = async_std::task::spawn(p2p_node_event_loop.run());
+    let (client_request_sender, client_request_receiver) = mpsc::channel(0);
 
-    client.start_listening("/ip4/10.0.0.3/tcp/0".parse().expect("address need to be valid"))
+    async_std::task::spawn(node_main_event_loop(client_request_receiver));
+    let mut client = NodeClient::new(client_request_sender);
+    let node1 = client
+        .bootstrap_node(
+            Some([1u8; 32]), 
+            "/ip4/10.0.0.3/tcp/0".to_string(), 
+            "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
+        )
         .await
-        .expect("Listen not to fail.");
+        .expect("creating not should not fail");
+
+    let node2 = client
+        .bootstrap_node(
+            Some([2u8; 32]), 
+            "/ip4/10.0.0.3/tcp/0".to_string(), 
+            "mpc-storage-db-12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq".to_string()
+        )
+        .await
+        .expect("creating not should not fail");
+
+    let node3 = client
+        .bootstrap_node(
+            Some([3u8; 32]), 
+            "/ip4/10.0.0.3/tcp/0".to_string(), 
+            "mpc-storage-db-12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba".to_string()
+        )
+        .await
+        .expect("creating not should not fail");
     
-    let _local_addr = addr_receiver.select_next_some().await;
+    println!("{:?}", node1);
+    println!("{:?}", node2);
+    println!("{:?}", node3);
 
-    // spin up the DB server event loop
-    let (storage_config, storage_in_sender) = default_mpc_storage_opt(
-        format!("mpc_storage-{:?}", local_peer_id), false
-    );
-    run_db_server(storage_config);
+    let keygen_request = PayloadHeader {
+        payload_id: [0u8; 32],
+        payload_type: PayloadType::KeyGen(None),
+        peers: vec![node1.clone(), node2, node3],
+        sender: node1.0,
 
-    let mut job_manager = JobManager::new(
-        local_peer_id, &mut client, storage_in_sender
-    );
+        t: 2, n: 3
+    };
 
-    loop {
-        futures::select! {
-            payload_header = job_assignment_receiver.select_next_some() => {
-                match payload_header.payload_type {
-                    PayloadType::KeyGen(_maybe_existing_key) => {
-                        job_manager.keygen_accept_new_job(
-                            payload_header.clone(), 
-                        );
-                    },
-                    PayloadType::Signing(_) => {
-                        unimplemented!()
-                    },
-                    PayloadType::KeyRefresh => {
-                        unimplemented!()
-                    }
-                }
-            },
-            payload = job_manager.main_outgoing_receiver.select_next_some() => {
-                println!("Client Handling outgoing start, msg to {:?}", payload.body.receiver);
-                job_manager.handle_outgoing(payload).await;
-                println!("Handling outgoing done");
-            },
-            raw_payload = main_message_receiver.select_next_some() => {
-                println!("cleint Handling incoming start", );
-                job_manager.handle_incoming(&raw_payload).await;
-                println!("client Handling incoming done");
-            },
-        }
-    }
+    let res = client
+        .send_request(node1.0, keygen_request)
+        .await
+        .expect("not to be failed");
+    
+    
+    println!("{:?}", res);
+
+    Ok(())
 }

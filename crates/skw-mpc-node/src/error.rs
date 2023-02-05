@@ -16,4 +16,5 @@ pub enum MpcNodeError {
     P2pBadPayload,
 
     FailToSendViaChannel,
+    FailToDeserilaizePayload,
 }

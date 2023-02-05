@@ -4,6 +4,8 @@ use skw_mpc_protocol::gg20::state_machine::keygen::LocalKey;
 
 use curv::elliptic::curves::secp256_k1::Secp256k1;
 
+use crate::error::MpcNodeError;
+
 pub fn encode_payload<M>(payload: &Payload<M>) -> Vec<u8>
     where M: Serialize + DeserializeOwned 
 {
@@ -11,11 +13,11 @@ pub fn encode_payload<M>(payload: &Payload<M>) -> Vec<u8>
         .expect("a valid outgoing payload")
 }
 
-pub fn decode_payload<M>(payload: &[u8]) -> M 
+pub fn decode_payload<M>(payload: &[u8]) -> Result<M, MpcNodeError>
     where M: Serialize + DeserializeOwned 
 {
     serde_json::from_slice(payload)
-        .expect("incoming payload not valid")
+        .map_err(|_| MpcNodeError::FailToDeserilaizePayload)
 }
 
 pub fn encode_key(key: &LocalKey<Secp256k1>) -> Vec<u8> {

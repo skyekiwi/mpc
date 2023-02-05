@@ -7,7 +7,7 @@ use libp2p::{
 pub use self::skw_mpc_p2p_behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcP2pRequest, MpcP2pResponse};
 
 #[derive(NetworkBehaviour)]
-pub struct MpcNodeBahavior {
+pub struct MpcSwarmBahavior {
     // node p2p behavior
     pub request_response: request_response::Behaviour<SkwMpcP2pCodec>,
 }

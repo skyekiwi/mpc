@@ -3564,6 +3564,7 @@ dependencies = [
  "blake2",
  "clap 3.2.23",
  "curv-kzen",
+ "ed25519-dalek",
  "futures",
  "getrandom 0.2.7",
  "libp2p",
