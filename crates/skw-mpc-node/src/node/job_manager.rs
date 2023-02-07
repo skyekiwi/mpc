@@ -106,7 +106,11 @@ impl<'node> JobManager<'node> {
                 .unwrap()
                 .saturating_add(1);
 
-            let keygen_sm = keygen::Keygen::new(local_index.try_into().unwrap(), new_header.t, new_header.n)
+            let keygen_sm = keygen::Keygen::new(
+                local_index.try_into().unwrap(), 
+                new_header.t.saturating_sub(1), // we need to sub t by 1 - ref to kzen-curv's VSS impl
+                new_header.n
+            )
                 .map_err(|e| { println!("Protocl Error {:?}", e) })
                 .unwrap();
             let output = AsyncProtocol::new(keygen_sm, 
