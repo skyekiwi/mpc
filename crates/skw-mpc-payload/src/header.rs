@@ -32,11 +32,13 @@ pub enum  PayloadType {
     
     // with the hash of the message to be signed. 
     // TODO: change the skw-mpc-protocol to not do hash on it
-    Signing {
+    SignOffline {
         message: CryptoHash,
         keygen_id: CryptoHash,
         keygen_peers: Vec<(PeerId, Multiaddr)>
     },
+
+    SignFinalize,
 
     // with an option of the old keys
     // None -> generate a fresh key

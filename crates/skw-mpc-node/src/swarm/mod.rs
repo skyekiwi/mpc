@@ -32,6 +32,8 @@ pub fn new_full_swarm_node(
     mpsc::Receiver< Multiaddr >,
     mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
     mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
+
+    mpsc::Sender<bool>, // swarm termination
 ), MpcNodeError> {
     let local_key = match local_key {
         None => identity::Keypair::generate_ed25519(),
@@ -43,7 +45,7 @@ pub fn new_full_swarm_node(
     };
 
     let local_peer_id = PeerId::from(local_key.public());
-    eprintln!("Local peer id: {local_peer_id}");
+    // eprintln!("Local peer id: {local_peer_id}");
 
     let transport = {
         let multiplexing_config = {
@@ -94,6 +96,7 @@ pub fn new_full_swarm_node(
 
     let (addr_sender, addr_receiver) = mpsc::channel(0);
 
+    let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
     Ok( (
         local_peer_id, 
         MpcSwarmClient { command_sender },
@@ -102,11 +105,13 @@ pub fn new_full_swarm_node(
             swarm_incoming_message_sender,
             swarm_incoming_job_sender, 
             command_receiver,
-            addr_sender
+            addr_sender,
+            swarm_termination_receiver
         ),
 
         addr_receiver,
         swarm_incoming_job_receiver,
         swarm_incoming_message_receiver,
+        swarm_termination_sender,
     ))
 }

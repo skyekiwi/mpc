@@ -22,12 +22,14 @@ pub struct MpcSwarmEventLoop {
 
     swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
     swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
+
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
 
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
     
     listen_to_addr_sender: mpsc::Sender< Multiaddr >,
+    swarm_termination_receiver: mpsc::Receiver<bool>,
 }
 
 impl MpcSwarmEventLoop {
@@ -40,6 +42,8 @@ impl MpcSwarmEventLoop {
         command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
         
         listen_to_addr_sender: mpsc::Sender< Multiaddr >,
+
+        swarm_termination_receiver: mpsc::Receiver<bool>,
     ) -> Self {
         Self {
             swarm,
@@ -51,6 +55,7 @@ impl MpcSwarmEventLoop {
             pending_dial: Default::default(),
             pending_request: Default::default(),
             listen_to_addr_sender,
+            swarm_termination_receiver,
         }
     }
 
@@ -68,9 +73,15 @@ impl MpcSwarmEventLoop {
                         Ok(()) => {},
                         Err(e) => eprintln!("{:?}", e)
                     }
+                },
+
+                _ = self.swarm_termination_receiver.select_next_some() => {
+                    break;
                 }
             }
         }
+
+        Ok(())
     }
 
     async fn handle_event(
@@ -102,7 +113,7 @@ impl MpcSwarmEventLoop {
                     }
                 }
             }
-            SwarmEvent::ConnectionClosed { peer_id, .. } => {
+            SwarmEvent::ConnectionClosed { .. } => {
                 // println!("{:?} Disconnected", peer_id);
                 // TODO: handle connect close
             }
@@ -127,7 +138,7 @@ impl MpcSwarmEventLoop {
                     request, channel, ..
                 } => {
                     match request {
-                        MpcP2pRequest::StartJob { auth_header, job_header } => {
+                        MpcP2pRequest::StartJob { job_header, .. } => {
                             // if the auth_header is invalid - send error
                             // if !auth_header.validate() {
                             if !true {
@@ -156,7 +167,7 @@ impl MpcSwarmEventLoop {
 
                                 self.swarm_incoming_job_sender
                                     .try_send(job_header )
-                                    .expect("node_incoming_job_sender should not be dropped. qed.");
+                                    .expect("swarm_incoming_job_sender should not be dropped. qed.");
                             }
                         },
 
@@ -164,7 +175,7 @@ impl MpcSwarmEventLoop {
                             // println!("Received Request RawMesage");
                             self.swarm_incoming_message_sender
                                 .unbounded_send( payload )
-                                .expect("node_incoming_job_sender should not be dropped. qed.");
+                                .expect("swarm_incoming_message_sender should not be dropped. qed.");
 
                             self.swarm
                                 .behaviour_mut()
@@ -174,18 +185,6 @@ impl MpcSwarmEventLoop {
                                 })
                                 .unwrap(); // TODO: this unwrap is not correct
                         },
-                        MpcP2pRequest::RequestPartialSignature { .. } => {
-                            // Query DB for the partial sig
-                            let partial_sig = [0u8; 3000];
-                            
-                            self.swarm
-                                .behaviour_mut()
-                                .request_response
-                                .send_response(channel, MpcP2pResponse::RequestPartialSignature { 
-                                    status: Ok(partial_sig.to_vec())
-                                })
-                                .unwrap(); // TODO: this unwrap is not corrects
-                        }
                     }
                 }
 

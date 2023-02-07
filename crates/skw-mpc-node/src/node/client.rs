@@ -1,12 +1,10 @@
-use std::vec;
-
 use futures::{channel::{mpsc, oneshot}, SinkExt};
 use libp2p::{PeerId, Multiaddr};
 use skw_mpc_payload::PayloadHeader;
 
 use crate::error::MpcNodeError;
 
-use super::ClientRequest;
+use super::{ClientRequest, client_outcome::ClientOutcome};
 
 pub struct NodeClient {
     external_request_sender: mpsc::Sender<ClientRequest>
@@ -42,19 +40,39 @@ impl NodeClient {
         &mut self,
         from: PeerId, 
         payload_header: PayloadHeader
-    ) -> Result<Vec<u8>, MpcNodeError> {
+    ) -> Result<ClientOutcome, MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.external_request_sender
             .send(ClientRequest::MpcRequest { from, payload_header, result_sender})
             .await
             .expect("receiver not to be droppped");
 
-        // let i = result_receiver
-        //     .await;
-        // println!("{:?}", i);
+        result_receiver
+            .await
+            .expect("result_receiver not to be dropped")
+    }
 
-        // i.unwrap()
-        Ok(vec![1, 2, 3])
-            // .expect("sender not to dropped")
+    pub async fn shutdown(&mut self, node: PeerId) -> Result<(), MpcNodeError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        self.external_request_sender
+            .send(ClientRequest::Shutdown { node, result_sender })
+            .await
+            .expect("receiver not to be droppped");
+
+        result_receiver
+            .await
+            .expect("sender not to dropped")
+    }
+
+    pub async fn write_to_db(&mut self, node: PeerId, key: [u8; 32], value: Vec<u8>) -> Result<bool, MpcNodeError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        self.external_request_sender
+            .send(ClientRequest::WriteToDB { node, key, value, result_sender })
+            .await
+            .expect("receiver not to be droppped");
+
+        Ok(result_receiver
+            .await
+            .expect("sender not to dropped"))
     }
 }

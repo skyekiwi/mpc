@@ -25,7 +25,7 @@ libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", fe
 futures = "0.3.1"
 async-trait = "0.1.61"
 
-async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes", "std"] }
+async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes"] }
 clap = { version = "3.1.16", features = ["derive"] }
 void = "*"
 curv-kzen = { version = "0.9", default-features = false }
@@ -37,10 +37,6 @@ bincode = "1.3.3"
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
 
 [dev-dependencies]
-
-[[bin]]
-name = "node-light"
-path = "src/binaries/node_light.rs"
 
 [[bin]]
 name = "node-client"

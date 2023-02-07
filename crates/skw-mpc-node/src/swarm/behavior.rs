@@ -21,7 +21,7 @@ pub mod skw_mpc_p2p_behavior {
     use futures::prelude::*;
     use libp2p::core::upgrade::{read_length_prefixed, write_length_prefixed, ProtocolName};
     use libp2p::request_response::Codec;
-    use skw_mpc_payload::{AuthHeader, PayloadHeader, CryptoHash};
+    use skw_mpc_payload::{AuthHeader, PayloadHeader};
 
     use crate::error::MpcNodeError;
 
@@ -40,9 +40,6 @@ pub mod skw_mpc_p2p_behavior {
         RawMessage {
             payload: Vec<u8>, // Serialized Payload
         },
-        RequestPartialSignature {
-            payload_header_id: CryptoHash,
-        }
     }
 
     // Serialized Form of raw response
@@ -55,9 +52,6 @@ pub mod skw_mpc_p2p_behavior {
             status: Result<(), MpcNodeError>,
             // NOTE: do we have any response to this? 
         },
-        RequestPartialSignature {
-            status: Result<Vec<u8>, MpcNodeError>,
-        }
     }
 
     impl ProtocolName for SkwMpcP2pProtocol {
