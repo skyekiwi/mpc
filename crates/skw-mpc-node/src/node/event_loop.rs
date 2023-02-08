@@ -1,262 +1,294 @@
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 
-use libp2p::{
-    swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
-    Swarm,
-    multiaddr, 
-    request_response::{self, RequestId,}, Multiaddr, 
-};
-use futures::{StreamExt, FutureExt, SinkExt};
-use futures::channel::{oneshot, mpsc};
+use curv::elliptic::curves::Secp256k1;
+use futures::{channel::{oneshot, mpsc}, StreamExt, SinkExt, stream::FuturesUnordered};
+use libp2p::PeerId;
+use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader, CryptoHash};
+use skw_mpc_protocol::gg20::state_machine::keygen::LocalKey;
+use skw_mpc_storage::db::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};
 
-use skw_mpc_payload::{PayloadHeader};
-use super::{
-    behavior::{MpcNodeBahavior, MpcNodeBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
-    client::MpcNodeCommand,
-};
+use crate::{error::MpcNodeError, swarm::{ new_full_swarm_node}, serde_support::{decode_key, decode_signature}};
 
-use crate::error::MpcNodeError;
+use super::{client_request::{ClientRequest}, job_manager::JobManager, client_outcome::ClientOutcome};
 
-pub struct MpcNodeEventLoop {
-    node: Swarm<MpcNodeBahavior>,
+async fn get_local_key(db_in: &mut mpsc::Sender<DBOpIn>, keygen_id: CryptoHash) -> LocalKey<Secp256k1> {
+    let (result_sender, result_receiver) = oneshot::channel();
 
-    node_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
-    node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
-    command_receiver: mpsc::UnboundedReceiver<MpcNodeCommand>,
-
-    pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
-    pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
+    db_in
+        .send(DBOpIn::ReadFromDB { key: keygen_id, result_sender })
+        .await
+        .expect("db channel must remain open");
     
-    listen_to_addr_sender: mpsc::Sender< Multiaddr >,
+    let raw_local_key = result_receiver
+        .await
+        .expect("db read to be success"); // TODO;
+    
+    let raw_local_key = match raw_local_key {
+        DBOpOut::ReadFromDB { status } => status.unwrap(),
+        _ => unreachable!(),
+    };
+    decode_key(&raw_local_key)
 }
 
-impl MpcNodeEventLoop {
-    pub fn new(
-        node: Swarm<MpcNodeBahavior>,
+async fn assign_job(
+    payload_header: PayloadHeader, 
+    result_sender: oneshot::Sender<Result< ClientOutcome, MpcNodeError>>,
+    db_in_channel: &mut mpsc::Sender<DBOpIn>,
+    job_manager: &mut JobManager<'_>
+) {
+    match payload_header.clone().payload_type {
+        PayloadType::KeyGen(_maybe_existing_key) => {
+            job_manager.keygen_accept_new_job(
+                payload_header.clone(), 
+                result_sender
+            );
+        },
+        PayloadType::SignOffline {
+            message, keygen_id, keygen_peers
+        }=> {
 
-        node_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
-        node_incoming_job_sender: mpsc::Sender <PayloadHeader>,
-    
-        command_receiver: mpsc::UnboundedReceiver<MpcNodeCommand>,
-        
-        listen_to_addr_sender: mpsc::Sender< Multiaddr >,
-    ) -> Self {
-        Self {
-            node,
+            let local_key = get_local_key(db_in_channel, keygen_id).await;
+            job_manager.sign_accept_new_job(
+                payload_header.clone(), 
 
-            node_incoming_message_sender, node_incoming_job_sender,
-            
-            command_receiver, 
+                local_key, 
+                keygen_peers, 
+                message,
 
-            pending_dial: Default::default(),
-            pending_request: Default::default(),
-            listen_to_addr_sender,
+                result_sender
+            ).await;
+        },
+        PayloadType::KeyRefresh => {
+            unimplemented!()
+        },
+        PayloadType::SignFinalize => {
+            // nop
         }
     }
+}
 
-    pub async fn run(mut self) -> Result<(), MpcNodeError> {
-        loop {
-            futures::select! {
-                // events are INCOMING Streams for the node raw events
-                event = self.node.next().fuse() => {
-                    self.handle_event(event.expect("always have an event")).await;
-                },
+pub async fn full_node_event_loop(
+    mut client_in: mpsc::Receiver<ClientRequest>
+) {
 
-                // commands are OUTGOING Sink of events 
-                command = self.command_receiver.select_next_some() => {
-                    match self.handle_command(command).await {
-                        Ok(()) => {},
-                        Err(e) => eprintln!("{:?}", e)
-                    }
-                }
-            }
-        }
-    }
+    let mut external_request_channels: HashMap<PeerId, mpsc::Sender<(
+        PayloadHeader, oneshot::Sender<Result<ClientOutcome, MpcNodeError>>
+    )>> = HashMap::new();
 
-    async fn handle_event(
-        &mut self,
-        event: SwarmEvent<
-            MpcNodeBahaviorEvent, ConnectionHandlerUpgrErr<std::io::Error>,
-        >,
-    ) {
-        match event {
-            // general network
-            SwarmEvent::NewListenAddr { address, .. } => {
-                let local_peer_id = self.node.local_peer_id().clone();
-                self.listen_to_addr_sender
-                    .send(address.clone().with(multiaddr::Protocol::P2p(local_peer_id.into())))
-                    .await
-                    .unwrap();
-                eprintln!(
-                    "Local node is listening on {:?}",
-                    address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
-                );
-            }
-            SwarmEvent::IncomingConnection { .. } => {}
-            SwarmEvent::ConnectionEstablished {
-                peer_id, endpoint, ..
-            } => {
-                if endpoint.is_dialer() {
-                    if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        let _ = sender.send(Ok(()));
-                    }
-                }
-            }
-            SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                // println!("{:?} Disconnected", peer_id);
-                // TODO: handle connect close
-            }
-            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-                if let Some(peer_id) = peer_id {
-                    if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        eprintln!("Dialing Error {:?}", error);
-                        let _ = sender.send(Err(MpcNodeError::FailToDial));
-                    }
-                }
-            }
-            SwarmEvent::IncomingConnectionError { .. } => {}
-            SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
+    let mut shutdown_channels: HashMap<PeerId, mpsc::Sender<bool>> = HashMap::new();
+    let mut db_in_channels: HashMap<PeerId, mpsc::Sender<DBOpIn>> = HashMap::new();
 
-            // p2p events
-            SwarmEvent::Behaviour(MpcNodeBahaviorEvent::RequestResponse(
-                request_response::Event::Message { message, .. },
-            )) => match message {
+    loop {
+        let client_request = client_in.select_next_some().await;
+
+        match client_request {
+            ClientRequest::BootstrapNode { local_key, listen_addr, db_name, result_sender } => {
                 
-                // p2p message request hanlder
-                request_response::Message::Request {
-                    request, channel, ..
-                } => {
-                    match request {
-                        MpcP2pRequest::StartJob { auth_header, job_header } => {
-                            // if the auth_header is invalid - send error
-                            // if !auth_header.validate() {
-                            if !true {
-                                self.node
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::StartJob { 
-                                        status: Err(MpcNodeError::P2pBadAuthHeader)
-                                    })
-                                    .unwrap(); // TODO: this unwrap is not correct
-                            } else {
-                                for (peer, address) in job_header.peers.iter() {
-                                    self.node
-                                        .behaviour_mut()
-                                        .request_response
-                                        .add_address(peer, address.clone());
+                // Wire up this node to receive external request
+                let (external_request_sender, mut external_request_receiver) = mpsc::channel::<(
+                    PayloadHeader, oneshot::Sender<Result<ClientOutcome, MpcNodeError>>
+                )>(0);
+                let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(0);
+
+                // wire up this node to emit PeerId & Listening Addr
+                let (peer_id_sender, peer_id_receiver) = oneshot::channel();            
+                
+                let (storage_config, mut storage_in_sender) = default_mpc_storage_opt(
+                    db_name, false
+                );
+                run_db_server(storage_config);
+                let db_in_chanel = storage_in_sender.clone();
+
+                async_std::task::spawn(async move {
+                    let (
+                        local_peer_id,
+                        
+                        mut swarm_client,
+                        swarm_event_loop,
+                        
+                        mut addr_receiver,
+                        mut job_assignment_receiver,
+                        mut swarm_message_receiver,
+                        mut swarm_termination_sender,
+                    ) = new_full_swarm_node(local_key)
+                        .unwrap(); // TODO: handle this unwrap
+
+                    async_std::task::spawn(swarm_event_loop.run());
+                    let mut interal_results = FuturesUnordered::new();
+                    
+                    swarm_client.start_listening(listen_addr.parse().expect("address need to be valid"))
+                        .await
+                        .expect("Listen not to fail.");// TODO: actually .. listen can fail
+                    let local_addr = addr_receiver.select_next_some().await;
+                    peer_id_sender
+                        .send((local_peer_id, local_addr))
+                        .expect("peer_id receiver not to be droppped");
+ 
+                    let (keygen_outgoing_sender, mut keygen_outgoing_receiver) = mpsc::unbounded();
+                    let (sign_offline_outgoing_sender, mut sign_offline_outgoing_receiver) = mpsc::unbounded();
+                    let (sign_fianlize_partial_signature_outgoing_sender, mut sign_fianlize_partial_signature_outgoing_receiver) = mpsc::unbounded();
+
+                    let mut job_manager = JobManager::new(
+                        local_peer_id, &mut swarm_client,
+                        keygen_outgoing_sender, sign_offline_outgoing_sender,
+                        sign_fianlize_partial_signature_outgoing_sender,
+                    );
+
+
+                    loop {
+                        futures::select! {
+                            
+                            /* Full Node ONLY - comes from Swarm */
+                            payload_header = job_assignment_receiver.select_next_some() => {
+                                if payload_header.sender != local_peer_id { // TODO: what is this for?
+                                    println!("{:?} Received job assignment {:?}", local_peer_id, payload_header);
+
+                                    let (result_sender, result_receiver) = oneshot::channel();
+                                
+                                    assign_job(
+                                        payload_header, result_sender, &mut storage_in_sender, &mut job_manager
+                                    ).await;
+
+                                    interal_results.push(result_receiver);
                                 }
+                            },
 
-                                self.node
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::StartJob { 
-                                        status: Ok(())
-                                    })
-                                    .unwrap(); // TODO: this unwrap is not correct
+                            /* Client Node ONLY - comes from node */
+                            request = external_request_receiver.select_next_some() => {
+                                let payload_header = request.0;
+                                let result_sender = request.1;
 
-                                self.node_incoming_job_sender
-                                    .try_send(job_header )
-                                    .expect("node_incoming_job_sender should not be dropped. qed.");
+                                println!("{:?} Received external job {:?}", local_peer_id, payload_header);
+
+                                job_manager.init_new_job(
+                                    AuthHeader::default(),
+                                    payload_header.clone(),
+                                ).await;
+
+                                assign_job(
+                                    payload_header, result_sender, &mut storage_in_sender, &mut job_manager
+                                ).await;
+                            },
+
+                            payload = keygen_outgoing_receiver.select_next_some() => {
+                                job_manager.handle_outgoing(payload).await;
+                            },
+                            payload = sign_offline_outgoing_receiver.select_next_some() => {
+                                job_manager.handle_outgoing(payload).await;
+                            },
+                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => {
+                                job_manager.handle_outgoing(payload).await;
                             }
-                        },
 
-                        MpcP2pRequest::RawMessage { payload } => {
-                            // println!("Received Request RawMesage");
-                            self.node_incoming_message_sender
-                                .unbounded_send( payload )
-                                .expect("node_incoming_job_sender should not be dropped. qed.");
+                            raw_payload = swarm_message_receiver.select_next_some() => {
+                                job_manager.handle_incoming(&raw_payload).await;
+                            },
 
-                            self.node
-                                .behaviour_mut()
-                                .request_response
-                                .send_response(channel, MpcP2pResponse::RawMessage { 
-                                    status: Ok(())
-                                })
-                                .unwrap(); // TODO: this unwrap is not correct
-                        },
+                            outcome = interal_results.select_next_some() => {
+                                let outcome = outcome.unwrap().unwrap();
+                                match outcome {
+                                    ClientOutcome::KeyGen {
+                                        payload_id, local_key, ..
+                                    } => {
+                                        let (res_sender, res_receiver) = oneshot::channel();
+                                        storage_in_sender.send(
+                                            DBOpIn::WriteToDB { 
+                                                key: payload_id, 
+                                                value: local_key, 
+                                                result_sender: res_sender
+                                            }
+                                        )
+                                            .await
+                                            .expect("DB Write should not fail");
+
+                                        let res = res_receiver.await;
+                                        println!("DB Result {:?}", res);
+                                    },
+                                    ClientOutcome::Sign {
+                                        peer_id, payload_id, sig
+                                    } => {
+                                        println!("Sign Result {:?} {:?} {:?}", peer_id, payload_id, decode_signature(&sig));
+                                    }
+                                };
+                            },
+
+                            _ = shutdown_receiver.select_next_some() => {
+                                // 1. shutdown the swarm
+                                swarm_termination_sender
+                                    .send(true)
+                                    .await
+                                    .expect("shutdown swarm should not fail");
+
+                                // 2. shutdown the db server
+                                let (result_sender, result_receiver) = oneshot::channel();
+                                storage_in_sender
+                                    .send(DBOpIn::Shutdown { result_sender })
+                                    .await
+                                    .expect("shutdown swarm should not fail");
+                                let _ = result_receiver.await;
+                                // 3. shutdown node event loop for node
+                                break;
+                            }
+                        }
                     }
-                }
+                });
 
-                // p2p message response hanlder
-                request_response::Message::Response {
-                    request_id,
-                    response,
-                } => {
-                    // TODO: handle Err from `let Err(e) = response.status`
-                    let _ = self
-                        .pending_request
-                        .remove(&request_id)
-                        .expect("Request to still be pending.")
-                        .send(Ok(response));
-                }
+                let local_swarm_info = peer_id_receiver.await.expect("cannot be canceled");
+                external_request_channels.insert(local_swarm_info.0, external_request_sender);
+                shutdown_channels.insert(local_swarm_info.0, shutdown_sender);
+                db_in_channels.insert(local_swarm_info.0, db_in_chanel);
+                result_sender
+                    .send(Ok(local_swarm_info))
+                    .expect("result_receiver should not be dropped for client_reuqest");
             },
 
-            // p2p message misc handler
-            SwarmEvent::Behaviour(MpcNodeBahaviorEvent::RequestResponse(
-                request_response::Event::OutboundFailure {
-                    request_id, error, peer,
-                },
-            )) => {
+            ClientRequest::MpcRequest { 
+                from, 
+                payload_header, 
+                result_sender 
+            } => {
+                let external_request_channel = external_request_channels
+                    .get_mut(&from)
+                    .expect("peer must be valid");
+                external_request_channel.send((
+                    payload_header, result_sender
+                ))
+                    .await
+                    .expect("external request receiver not to be dropped.");
+            },
 
-                eprintln!("p2p outbound request failure {:?} {:?}", error, peer);
-                let _ = self
-                    .pending_request
-                    .remove(&request_id)
-                    .expect("Request to still be pending.")
-                    .send(Err(MpcNodeError::P2pOutboundFailure));
+            ClientRequest::Shutdown { node, result_sender} => {
+                shutdown_channels
+                    .get_mut(&node)
+                    .expect("shutdown channel not found")
+                    .send(true)
+                    .await
+                    .expect("shutdown receiver not to be dropped");
+                result_sender
+                    .send(Ok(()))
+                    .expect("result receiver not to be dropped");
             }
-            SwarmEvent::Behaviour(MpcNodeBahaviorEvent::RequestResponse(
-                request_response::Event::ResponseSent { .. },
-            )) => {},
-            
-            _ => {}
-        }
-    }
+            ClientRequest::WriteToDB { node, key, value, result_sender } => {
+                let (db_write_result_sender, db_write_result_receiver) = oneshot::channel();
 
-    async fn handle_command(&mut self, request: MpcNodeCommand) -> Result<(), MpcNodeError> {
-        match request {
-            MpcNodeCommand::StartListening { addr, result_sender } => {
-                match self.node.listen_on(addr) {
-                    Ok(_) => {
-                        result_sender.send(Ok(()))
-                            .expect("sender should not be dropped");
-                        Ok(())
-                    },
-                    Err(_e )=> result_sender.send(Err(MpcNodeError::FailToListenOnPort)),
-                }.map_err(|_| MpcNodeError::FailToSendViaChannel)
-            },
-            MpcNodeCommand::Dial { peer_id, peer_addr, result_sender } => {
-                if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                    self.node
-                        .behaviour_mut()
-                        .request_response
-                        .add_address(&peer_id, peer_addr.clone());
-
-                    match self
-                        .node
-                        .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
-                    {
-                        Ok(()) => {
-                            e.insert(result_sender);
-                            Ok(())
-                        }
-                        Err(_) => {
-                            result_sender.send(Err(MpcNodeError::FailToDial))
-                                .map_err(|_| MpcNodeError::FailToSendViaChannel)
-                        }
-                    }
+                db_in_channels
+                    .get_mut(&node)
+                    .expect("shutdown channel not found")
+                    .send(DBOpIn::WriteToDB { key, value, result_sender: db_write_result_sender })
+                    .await
+                    .expect("db_in_receiver should not be dropped");
+                let x = db_write_result_receiver
+                    .await
+                    .expect("db_write_result_receiver is not dropped");
+                if let DBOpOut::WriteToDB { status: Ok(_) } = x {
+                    result_sender
+                        .send(true)
+                        .expect("result receiver not to be dropped");
                 } else {
-                    todo!("Already dialing peer.");
+                    result_sender
+                        .send(false)
+                        .expect("result receiver not to be dropped");
                 }
-            },
-            MpcNodeCommand::SendP2pRequest { to, request, result_sender } => {
-                let request_id = self.node
-                    .behaviour_mut()
-                    .request_response
-                    .send_request(&to, request.clone());
-                self.pending_request.insert(request_id, result_sender);
-
-                Ok(())
             }
         }
     }

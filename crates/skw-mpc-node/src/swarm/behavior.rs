@@ -7,7 +7,7 @@ use libp2p::{
 pub use self::skw_mpc_p2p_behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcP2pRequest, MpcP2pResponse};
 
 #[derive(NetworkBehaviour)]
-pub struct MpcNodeBahavior {
+pub struct MpcSwarmBahavior {
     // node p2p behavior
     pub request_response: request_response::Behaviour<SkwMpcP2pCodec>,
 }
@@ -38,7 +38,7 @@ pub mod skw_mpc_p2p_behavior {
             job_header: PayloadHeader,
         },
         RawMessage {
-            payload: Vec<u8>,
+            payload: Vec<u8>, // Serialized Payload
         },
     }
 
@@ -51,7 +51,7 @@ pub mod skw_mpc_p2p_behavior {
         RawMessage {
             status: Result<(), MpcNodeError>,
             // NOTE: do we have any response to this? 
-        }
+        },
     }
 
     impl ProtocolName for SkwMpcP2pProtocol {
@@ -91,7 +91,7 @@ pub mod skw_mpc_p2p_behavior {
         where
             T: AsyncRead + Unpin + Send,
         {
-            let vec = read_length_prefixed(io, 1024).await?; // update transfer maximum
+            let vec = read_length_prefixed(io, 10_240).await?; // update transfer maximum
 
             if vec.is_empty() {
                 return Err(io::ErrorKind::UnexpectedEof.into());

@@ -1,77 +1,78 @@
+use futures::{channel::{mpsc, oneshot}, SinkExt};
 use libp2p::{PeerId, Multiaddr};
-use futures::{SinkExt};
-use futures::channel::{mpsc, oneshot};
+use skw_mpc_payload::PayloadHeader;
 
 use crate::error::MpcNodeError;
 
-use super::behavior::{MpcP2pRequest, MpcP2pResponse};
+use super::{ClientRequest, client_outcome::ClientOutcome};
 
-#[derive(Debug)]
-pub enum MpcNodeCommand {
-    // Command to node
-    StartListening {
-        addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
-    },
-    Dial {
-        peer_id: PeerId,
-        peer_addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
-    },
-    // CORE: Command to ReqRes P2p sub-protocol 
-    SendP2pRequest {
-        to: PeerId,
-        request: MpcP2pRequest,
-        result_sender: oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>,
-    },
+pub struct NodeClient {
+    external_request_sender: mpsc::Sender<ClientRequest>
 }
 
-pub struct MpcNodeClient {
-    pub command_sender: mpsc::UnboundedSender<MpcNodeCommand>
-}
+impl NodeClient {
+    pub fn new(external_request_sender: mpsc::Sender<ClientRequest>) -> Self {
+        Self {
+            external_request_sender,
+        }
+    }
 
-impl MpcNodeClient {
-    /// Listen for incoming connections on the given address.
-    pub async fn start_listening(
+    pub async fn bootstrap_node(
         &mut self,
-        addr: Multiaddr,
-    ) -> Result<(), MpcNodeError> {
+        local_key: Option<[u8; 32]>,
+        listen_addr: String, 
+        db_name: String,
+    ) -> Result<(PeerId, Multiaddr) , MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        self.command_sender
-            .send(MpcNodeCommand::StartListening { addr, result_sender })
+        self.external_request_sender
+            .send(ClientRequest::BootstrapNode {
+            local_key, listen_addr, db_name,  result_sender,
+        })
             .await
-            .expect("MpcNodeCommand receiver not to be dropped.");
+            .expect("receiver not to be droppped");
+
         result_receiver
             .await
-            .expect("Sender not to be dropped.")
+            .expect("sender not to dropped")
     }
 
-    /// Dial the given peer at the given address.
-    pub async fn dial(
+    pub async fn send_request(
         &mut self,
-        peer_id: PeerId,
-        peer_addr: Multiaddr,
-    ) -> Result<(), MpcNodeError> {
+        from: PeerId, 
+        payload_header: PayloadHeader
+    ) -> Result<ClientOutcome, MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        
-        self.command_sender
-            .send(MpcNodeCommand::Dial {
-                peer_id,
-                peer_addr,
-                result_sender,
-            })
+        self.external_request_sender
+            .send(ClientRequest::MpcRequest { from, payload_header, result_sender})
             .await
-            .expect("Command receiver not to be dropped.");
-        result_receiver.await.expect("Sender not to be dropped.")
+            .expect("receiver not to be droppped");
+
+        result_receiver
+            .await
+            .expect("result_receiver not to be dropped")
     }
 
-    pub async fn send_request(&mut self, to: PeerId, request: MpcP2pRequest) -> Result<MpcP2pResponse,  MpcNodeError> {
+    pub async fn shutdown(&mut self, node: PeerId) -> Result<(), MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
-        self.command_sender
-            .send(MpcNodeCommand::SendP2pRequest { to, request, result_sender })
+        self.external_request_sender
+            .send(ClientRequest::Shutdown { node, result_sender })
             .await
-            .expect("Command receiver not to be dropped.");
-        let status = result_receiver.await.expect("Sender not to be dropped.");
-        status
+            .expect("receiver not to be droppped");
+
+        result_receiver
+            .await
+            .expect("sender not to dropped")
+    }
+
+    pub async fn write_to_db(&mut self, node: PeerId, key: [u8; 32], value: Vec<u8>) -> Result<bool, MpcNodeError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+        self.external_request_sender
+            .send(ClientRequest::WriteToDB { node, key, value, result_sender })
+            .await
+            .expect("receiver not to be droppped");
+
+        Ok(result_receiver
+            .await
+            .expect("sender not to dropped"))
     }
 }

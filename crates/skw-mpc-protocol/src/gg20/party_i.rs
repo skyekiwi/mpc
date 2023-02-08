@@ -841,6 +841,8 @@ impl LocalSignature {
             .fold(Point::generator().to_point(), |acc, x| acc + x);
         let sum = sum_plus_g - &Point::generator().to_point();
 
+
+        println!("Phase 6 Check SiSum {:?} {:?}", sum, pubkey_y);
         match &sum == pubkey_y {
             true => Ok(()),
             false => Err(Phase6Error),

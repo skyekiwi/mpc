@@ -165,10 +165,11 @@ where
     async fn proceed_if_needed(&mut self) -> Result<(), Error<SM::Err, IErr, O::Error>> {
         let mut state = self.state.take().ok_or(InternalError::MissingState)?;
         if state.wants_to_proceed() {
-            let (result, s) = async_std::task::spawn_blocking(move || (state.proceed(), state))
-                .await;
-                // .map_err(|_| Error::ProceedPanicked)?;
-            state = s;
+            let result = state.proceed();
+            // let (result, s) = async_std::task::spawn_blocking(move || (state.proceed(), state))
+            //     .await;
+            //     // .map_err(|_| Error::ProceedPanicked)?;
+            // state = s;
 
             match result {
                 Ok(()) => (),
