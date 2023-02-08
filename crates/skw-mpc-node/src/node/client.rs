@@ -1,10 +1,14 @@
 use futures::{channel::{mpsc, oneshot}, SinkExt};
 use libp2p::{PeerId, Multiaddr};
-use skw_mpc_payload::PayloadHeader;
 
 use crate::error::MpcNodeError;
 
-use super::{ClientRequest, client_outcome::ClientOutcome};
+use super::ClientRequest;
+
+#[cfg(feature = "light")]
+use super::client_outcome::ClientOutcome;
+#[cfg(feature = "light")]
+use skw_mpc_payload::{PayloadHeader, AuthHeader};
 
 pub struct NodeClient {
     external_request_sender: mpsc::Sender<ClientRequest>
@@ -36,14 +40,18 @@ impl NodeClient {
             .expect("sender not to dropped")
     }
 
+    #[cfg(feature = "light")]
     pub async fn send_request(
         &mut self,
-        from: PeerId, 
-        payload_header: PayloadHeader
+        from: PeerId,
+        payload_header: PayloadHeader,
+        auth_header: AuthHeader,
+        maybe_local_key: Option<Vec<u8>>,
     ) -> Result<ClientOutcome, MpcNodeError> {
+
         let (result_sender, result_receiver) = oneshot::channel();
         self.external_request_sender
-            .send(ClientRequest::MpcRequest { from, payload_header, result_sender})
+            .send(ClientRequest::MpcRequest { from, payload_header, auth_header, maybe_local_key, result_sender})
             .await
             .expect("receiver not to be droppped");
 
@@ -64,6 +72,7 @@ impl NodeClient {
             .expect("sender not to dropped")
     }
 
+    #[cfg(feature = "full")]
     pub async fn write_to_db(&mut self, node: PeerId, key: [u8; 32], value: Vec<u8>) -> Result<bool, MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.external_request_sender

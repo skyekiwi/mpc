@@ -13,31 +13,41 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-skw-mpc-storage = { path = "../skw-mpc-storage" }
+skw-mpc-storage = { path = "../skw-mpc-storage", optional = true}
 skw-mpc-payload = { path = "../skw-mpc-payload" }
 skw-mpc-protocol = { path = "../skw-mpc-protocol" }
 skw-round-based = { path = "../skw-round-based" }
 
 blake2 = { version = "0.10.6", default-features = false }
-
 serde = { version = "1.0", features = ["derive"], default-features = false }
-libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "kad", "request-response", "identify", "macros", "tcp", "noise", "mplex", "async-std", "yamux"]}
+
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux"]}
+
 futures = "0.3.1"
 async-trait = "0.1.61"
 
 async-std = { version = "1.12.0", default-features = false, features = ["alloc", "attributes"] }
-clap = { version = "3.1.16", features = ["derive"] }
-void = "*"
 curv-kzen = { version = "0.9", default-features = false }
 ed25519-dalek = "1.0.1"
 serde_json = "1.0"
 bincode = "1.3.3"
 
-# for wasm32-unknown-unknown
-getrandom = { version = "0.2", default-features = false, features = ["js"] }
+wasm-bindgen-futures = { version = "0.4.34", optional = true }
+getrandom = { version = "0.2", default-features = false, optional = true}
 
 [dev-dependencies]
 
-[[bin]]
+[features]
+default = ["full"]
+full = ["skw-mpc-storage", "libp2p/websocket", "libp2p/tcp", "libp2p/async-std"]
+light = ["libp2p/wasm-ext", "libp2p/wasm-ext-websocket", "libp2p/wasm-bindgen", "getrandom/js", "wasm-bindgen-futures"]
+
+[[example]]
 name = "node-client"
-path = "src/binaries/node_client.rs"
+path = "src/examples/node_client.rs"
+required-features = ["light"]
+
+[[example]]
+name = "node-full"
+path = "src/examples/node_full.rs"
+required-features = ["full"]

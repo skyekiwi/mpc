@@ -9,7 +9,9 @@ use libp2p::{
 use futures::{StreamExt, FutureExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
+#[cfg(feature = "full")]
 use skw_mpc_payload::{PayloadHeader};
+
 use super::{
     behavior::{MpcSwarmBahavior, MpcSwarmBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
     client::MpcSwarmCommand,
@@ -21,6 +23,8 @@ pub struct MpcSwarmEventLoop {
     swarm: Swarm<MpcSwarmBahavior>,
 
     swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
+
+    #[cfg(feature = "full")]
     swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
 
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
@@ -37,6 +41,8 @@ impl MpcSwarmEventLoop {
         swarm: Swarm<MpcSwarmBahavior>,
 
         swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
+
+        #[cfg(feature = "full")]
         swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
     
         command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
@@ -48,7 +54,10 @@ impl MpcSwarmEventLoop {
         Self {
             swarm,
 
-            swarm_incoming_message_sender, swarm_incoming_job_sender,
+            swarm_incoming_message_sender, 
+            
+            #[cfg(feature = "full")]
+            swarm_incoming_job_sender,
             
             command_receiver, 
 
@@ -59,7 +68,7 @@ impl MpcSwarmEventLoop {
         }
     }
 
-    pub async fn run(mut self) -> Result<(), MpcNodeError> {
+    pub async fn run(mut self) {
         loop {
             futures::select! {
                 // events are INCOMING Streams for the node raw events
@@ -80,8 +89,6 @@ impl MpcSwarmEventLoop {
                 }
             }
         }
-
-        Ok(())
     }
 
     async fn handle_event(
@@ -139,36 +146,44 @@ impl MpcSwarmEventLoop {
                 } => {
                     match request {
                         MpcP2pRequest::StartJob { job_header, .. } => {
-                            // if the auth_header is invalid - send error
-                            // if !auth_header.validate() {
-                            if !true {
-                                self.swarm
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::StartJob { 
-                                        status: Err(MpcNodeError::P2pBadAuthHeader)
-                                    })
-                                    .unwrap(); // TODO: this unwrap is not correct
-                            } else {
-                                for (peer, address) in job_header.peers.iter() {
+
+                            #[cfg(feature = "full")]
+                            {
+                                // if the auth_header is invalid - send error
+                                // if !auth_header.validate() {
+                                if !true {
                                     self.swarm
                                         .behaviour_mut()
                                         .request_response
-                                        .add_address(peer, address.clone());
+                                        .send_response(channel, MpcP2pResponse::StartJob { 
+                                            status: Err(MpcNodeError::P2pBadAuthHeader)
+                                        })
+                                        .unwrap(); // TODO: this unwrap is not correct
+                                } else {
+                                    for (peer, address) in job_header.peers.iter() {
+                                        self.swarm
+                                            .behaviour_mut()
+                                            .request_response
+                                            .add_address(peer, address.clone());
+                                    }
+
+                                    self.swarm
+                                        .behaviour_mut()
+                                        .request_response
+                                        .send_response(channel, MpcP2pResponse::StartJob { 
+                                            status: Ok(())
+                                        })
+                                        .unwrap(); // TODO: this unwrap is not correct
+
+                                    self.swarm_incoming_job_sender
+                                        .try_send(job_header )
+                                        .expect("swarm_incoming_job_sender should not be dropped. qed.");
                                 }
-
-                                self.swarm
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::StartJob { 
-                                        status: Ok(())
-                                    })
-                                    .unwrap(); // TODO: this unwrap is not correct
-
-                                self.swarm_incoming_job_sender
-                                    .try_send(job_header )
-                                    .expect("swarm_incoming_job_sender should not be dropped. qed.");
                             }
+
+                            // NOP for light node - light node client never receive StartJob Request
+                            #[cfg(feature = "light")] 
+                            {}
                         },
 
                         MpcP2pRequest::RawMessage { payload } => {
@@ -233,7 +248,10 @@ impl MpcSwarmEventLoop {
                             .expect("sender should not be dropped");
                         Ok(())
                     },
-                    Err(_e )=> result_sender.send(Err(MpcNodeError::FailToListenOnPort)),
+                    Err(_e )=> {
+                        println!("Failed To Listen {:?}", _e);
+                        result_sender.send(Err(MpcNodeError::FailToListenOnPort))
+                    },
                 }.map_err(|_| MpcNodeError::FailToSendViaChannel)
             },
             MpcSwarmCommand::Dial { peer_id, peer_addr, result_sender } => {

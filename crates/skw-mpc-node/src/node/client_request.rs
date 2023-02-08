@@ -1,10 +1,12 @@
 use futures::channel::oneshot;
 use libp2p::{PeerId, Multiaddr};
-use skw_mpc_payload::{PayloadHeader};
 
 use crate::error::MpcNodeError;
 
+#[cfg(feature = "light")]
 use super::client_outcome::ClientOutcome;
+#[cfg(feature = "light")]
+use skw_mpc_payload::{PayloadHeader, AuthHeader};
 
 pub enum ClientRequest {
     BootstrapNode {
@@ -19,7 +21,7 @@ pub enum ClientRequest {
         >
     },
 
-    // TODO: we don't really like this, keep it here until we are done with the wasm version of the node
+    #[cfg(feature = "full")]
     WriteToDB {
         node: PeerId,
         key: [u8; 32],
@@ -28,9 +30,12 @@ pub enum ClientRequest {
         result_sender: oneshot::Sender<bool>,
     },
 
+    #[cfg(feature = "light")]
     MpcRequest {
         from: PeerId,
-        payload_header: PayloadHeader, 
+        payload_header: PayloadHeader,
+        auth_header: AuthHeader,
+        maybe_local_key: Option<Vec<u8>>,
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
     },
 

@@ -14,10 +14,10 @@ use curv::elliptic::curves::secp256_k1::Secp256k1;
 
 use crate::{
     swarm::{MpcSwarmClient, MpcP2pRequest}, 
-    serde_support::{decode_payload, encode_payload, encode_key, encode_signature}, error::MpcNodeError
+    serde_support::{decode_payload, encode_payload, encode_key, encode_signature}, error::MpcNodeError, async_executor
 };
 
-use super::client_outcome::ClientOutcome;
+use crate::node::client_outcome::ClientOutcome;
 
 type KeyGenMessage = Msg<keygen::ProtocolMessage>;
 type SignOfflineMessage = Msg<sign::OfflineProtocolMessage>;
@@ -89,7 +89,6 @@ impl<'node> JobManager<'node> {
 
     pub fn keygen_accept_new_job(&mut self, 
         new_header: PayloadHeader,
-        /* For KeyGen - most of the time - we don't really care about the outcome */
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
     ) {
         let job_id = new_header.clone().payload_id;
@@ -100,7 +99,7 @@ impl<'node> JobManager<'node> {
         self.keygen_protocol_incoming_channel.insert(job_id, incoming_sender.clone());
 
         // spin up the thread to handle these tasks
-        async_std::task::spawn(async move {
+        async_executor(async move {
             let local_index = new_header.peers.iter()
                 .position(|p| p.0.clone() == local_peer_id)
                 .unwrap()
@@ -154,7 +153,7 @@ impl<'node> JobManager<'node> {
         self.sign_offline_protocol_incoming_channel.insert(job_id, incoming_sender.clone());
 
         // spin up the thread to handle these tasks
-        async_std::task::spawn(async move {
+        async_executor(async move {
             let local_index: u16 = keygen_peers.iter()
                 .position(|p| p.0.clone() == local_peer_id)
                 .unwrap()

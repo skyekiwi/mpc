@@ -3,13 +3,17 @@ use std::collections::HashMap;
 use curv::elliptic::curves::Secp256k1;
 use futures::{channel::{oneshot, mpsc}, StreamExt, SinkExt, stream::FuturesUnordered};
 use libp2p::PeerId;
-use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader, CryptoHash};
+use skw_mpc_payload::{header::PayloadType, PayloadHeader, CryptoHash};
 use skw_mpc_protocol::gg20::state_machine::keygen::LocalKey;
-use skw_mpc_storage::db::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};
+use skw_mpc_storage::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};
 
-use crate::{error::MpcNodeError, swarm::{ new_full_swarm_node}, serde_support::{decode_key, decode_signature}};
+use crate::{error::MpcNodeError, swarm::{ new_full_swarm_node}, serde_support::{decode_key, decode_signature}, async_executor};
+use crate::{
+    node::client_request::{ClientRequest},
+    node::client_outcome::ClientOutcome
+};
 
-use super::{client_request::{ClientRequest}, job_manager::JobManager, client_outcome::ClientOutcome};
+use super::job_manager::JobManager;
 
 async fn get_local_key(db_in: &mut mpsc::Sender<DBOpIn>, keygen_id: CryptoHash) -> LocalKey<Secp256k1> {
     let (result_sender, result_receiver) = oneshot::channel();
@@ -70,11 +74,6 @@ async fn assign_job(
 pub async fn full_node_event_loop(
     mut client_in: mpsc::Receiver<ClientRequest>
 ) {
-
-    let mut external_request_channels: HashMap<PeerId, mpsc::Sender<(
-        PayloadHeader, oneshot::Sender<Result<ClientOutcome, MpcNodeError>>
-    )>> = HashMap::new();
-
     let mut shutdown_channels: HashMap<PeerId, mpsc::Sender<bool>> = HashMap::new();
     let mut db_in_channels: HashMap<PeerId, mpsc::Sender<DBOpIn>> = HashMap::new();
 
@@ -83,23 +82,17 @@ pub async fn full_node_event_loop(
 
         match client_request {
             ClientRequest::BootstrapNode { local_key, listen_addr, db_name, result_sender } => {
-                
-                // Wire up this node to receive external request
-                let (external_request_sender, mut external_request_receiver) = mpsc::channel::<(
-                    PayloadHeader, oneshot::Sender<Result<ClientOutcome, MpcNodeError>>
-                )>(0);
                 let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(0);
 
                 // wire up this node to emit PeerId & Listening Addr
                 let (peer_id_sender, peer_id_receiver) = oneshot::channel();            
-                
                 let (storage_config, mut storage_in_sender) = default_mpc_storage_opt(
                     db_name, false
                 );
                 run_db_server(storage_config);
                 let db_in_chanel = storage_in_sender.clone();
 
-                async_std::task::spawn(async move {
+                async_executor(async move {
                     let (
                         local_peer_id,
                         
@@ -113,11 +106,12 @@ pub async fn full_node_event_loop(
                     ) = new_full_swarm_node(local_key)
                         .unwrap(); // TODO: handle this unwrap
 
-                    async_std::task::spawn(swarm_event_loop.run());
+                    async_executor(swarm_event_loop.run());
                     let mut interal_results = FuturesUnordered::new();
                     
                     swarm_client.start_listening(listen_addr.parse().expect("address need to be valid"))
                         .await
+                        .map_err(|e| println!("Failed To Listen {:?}", e))
                         .expect("Listen not to fail.");// TODO: actually .. listen can fail
                     let local_addr = addr_receiver.select_next_some().await;
                     peer_id_sender
@@ -134,13 +128,13 @@ pub async fn full_node_event_loop(
                         sign_fianlize_partial_signature_outgoing_sender,
                     );
 
-
                     loop {
                         futures::select! {
-                            
-                            /* Full Node ONLY - comes from Swarm */
                             payload_header = job_assignment_receiver.select_next_some() => {
-                                if payload_header.sender != local_peer_id { // TODO: what is this for?
+                                // For StartJob Swarm Request - sometimes the sender is not 100% correct
+                                // Just in case - we filter out request address to ourselves
+                                // TODO: To be removed in future
+                                if payload_header.sender != local_peer_id {
                                     println!("{:?} Received job assignment {:?}", local_peer_id, payload_header);
 
                                     let (result_sender, result_receiver) = oneshot::channel();
@@ -151,23 +145,6 @@ pub async fn full_node_event_loop(
 
                                     interal_results.push(result_receiver);
                                 }
-                            },
-
-                            /* Client Node ONLY - comes from node */
-                            request = external_request_receiver.select_next_some() => {
-                                let payload_header = request.0;
-                                let result_sender = request.1;
-
-                                println!("{:?} Received external job {:?}", local_peer_id, payload_header);
-
-                                job_manager.init_new_job(
-                                    AuthHeader::default(),
-                                    payload_header.clone(),
-                                ).await;
-
-                                assign_job(
-                                    payload_header, result_sender, &mut storage_in_sender, &mut job_manager
-                                ).await;
                             },
 
                             payload = keygen_outgoing_receiver.select_next_some() => {
@@ -234,27 +211,11 @@ pub async fn full_node_event_loop(
                 });
 
                 let local_swarm_info = peer_id_receiver.await.expect("cannot be canceled");
-                external_request_channels.insert(local_swarm_info.0, external_request_sender);
                 shutdown_channels.insert(local_swarm_info.0, shutdown_sender);
                 db_in_channels.insert(local_swarm_info.0, db_in_chanel);
                 result_sender
                     .send(Ok(local_swarm_info))
                     .expect("result_receiver should not be dropped for client_reuqest");
-            },
-
-            ClientRequest::MpcRequest { 
-                from, 
-                payload_header, 
-                result_sender 
-            } => {
-                let external_request_channel = external_request_channels
-                    .get_mut(&from)
-                    .expect("peer must be valid");
-                external_request_channel.send((
-                    payload_header, result_sender
-                ))
-                    .await
-                    .expect("external request receiver not to be dropped.");
             },
 
             ClientRequest::Shutdown { node, result_sender} => {
