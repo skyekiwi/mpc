@@ -17,5 +17,8 @@ serde = { version = "1.0", features = ["derive"], default-features = false }
 skw-mpc-auth = {path = "../skw-mpc-auth"}
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["identify", "serde"]}
 
+# for wasm32-unknown-unknown
+getrandom = { version = "0.2", default-features = false, features = ["js"] }
+
 [dev-dependencies]
 bincode = "1.3.3"

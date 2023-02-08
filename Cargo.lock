@@ -3621,6 +3621,7 @@ name = "skw-mpc-payload"
 version = "0.1.7"
 dependencies = [
  "bincode",
+ "getrandom 0.2.8",
  "libp2p",
  "serde",
  "skw-mpc-auth",
