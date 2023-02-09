@@ -12,7 +12,7 @@ impl BaseAuth {
         time: Timestamp
     ) -> Result<[u8; CODE_LEN], MpcAuthError> {
         let s = base32_decode(secret)?;
-        
+
         let t = get_time(time);
 
         let hash = hmac_sha1(&s, &t.to_be_bytes());
@@ -25,7 +25,7 @@ impl BaseAuth {
         code %= 10_i32.checked_pow(
             u32::try_from(CODE_LEN).expect("never fails")
         ).expect("code length overflow");
-        
+
         // NOTE: sCODE_LEN is hardcoded here
         let res: Vec<u8> = format!("{:0>6}", code)
             .to_string()
@@ -93,7 +93,7 @@ impl BaseAuth {
 #[test]
 fn basic_auth_works() {
     let code = BaseAuth::get_code("H6ORCEULNB4LSP2XXYZFPC4NPADXEEC6", 0).unwrap();
-    let verify = BaseAuth::verify_code("H6ORCEULNB4LSP2XXYZFPC4NPADXEEC6", 
+    let verify = BaseAuth::verify_code("H6ORCEULNB4LSP2XXYZFPC4NPADXEEC6",
         &code.clone(), 1, 0);
 
     println!("{:?} {:?}", code, verify);

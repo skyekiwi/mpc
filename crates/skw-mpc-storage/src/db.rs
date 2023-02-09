@@ -30,6 +30,10 @@ pub enum DBOpIn  {
         result_sender: oneshot::Sender<DBOpOut>,
     },
 
+	ForceFlush {
+		result_sender: oneshot::Sender<DBOpOut>,
+    },
+
     Shutdown {
         result_sender: oneshot::Sender<DBOpOut>,
     },
@@ -46,6 +50,10 @@ pub enum DBOpOut {
     },
 
     DeleteFromDB {
+        status: Result<(), MpcStorageError>,
+    },
+
+	ForceFlush {
         status: Result<(), MpcStorageError>,
     },
 
@@ -126,6 +134,13 @@ pub fn run_db_server(
                         .map_err(|_| MpcStorageError::KeyNotInDB);
                     result_sender
                         .send(DBOpOut::DeleteFromDB { status })
+                        .expect("db out receiver should not been dropped")
+                },
+				DBOpIn::ForceFlush { result_sender } => {
+                    let status = db.flush()
+                        .map_err(|_| MpcStorageError::FailToFlushDB);
+                    result_sender
+                        .send(DBOpOut::ForceFlush { status })
                         .expect("db out receiver should not been dropped")
                 },
                 DBOpIn::Shutdown { result_sender } => {

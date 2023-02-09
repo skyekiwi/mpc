@@ -1,16 +1,16 @@
 use serde::{Serialize, Deserialize};
-use crate::types::{SECRET_LEN, CODE_LEN};
+use crate::types::{SECRET_LEN, CODE_LEN, SIG_LEN};
 
 use crate::auth::BaseAuth;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AuthCode {
 
-    secret_key: [u8; SECRET_LEN],
+    pub secret_key: [u8; SECRET_LEN],
     pub code: [u8; CODE_LEN],
 
-    time: u64,
-    time_discrepancy: u64,
+    pub time: u64,
+    pub time_discrepancy: u64,
 }
 
 impl AuthCode {

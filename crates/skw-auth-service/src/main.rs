@@ -1,13 +1,18 @@
 use tide::Request;
 use tide::prelude::*;
-use futures::channel::mpsc;
+use futures::{channel::{oneshot, mpsc::{Sender}}};
 use futures::StreamExt;
 use serde::Deserialize;
 
-use skw_mpc_storage::db::MpcStorage;
+use skw_mpc_storage::db::{default_mpc_storage_opt, run_db_server, DBOpIn};
 use skw_mpc_auth::email::EmailAuth;
 use rand::Rng;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use blake2::{Blake2bVar, Digest};
+use blake2::digest::{Update, VariableOutput};
+use crate::email::send_auth_code_to_email;
+
 
 #[derive(Debug, Deserialize)]
 struct EmailAuthRequest {
@@ -16,25 +21,18 @@ struct EmailAuthRequest {
 
 #[derive(Clone)]
 struct ServerState {
-    db_sender: mpsc::Sender<DBMutation>
-}
-#[derive(Clone)]
-struct DBMutation {
-	key: Vec<u8>,
-	value: Vec<u8>,
+    storage_in_sender: Sender<DBOpIn>
 }
 
-async fn produce_db_request<'a >(mut db_req_sender: mpsc::Sender<DBMutation>, mutation: &'a DBMutation) {
-	println!("{:?}", mutation.clone().value);
-	let _ = db_req_sender.try_send(mutation.clone());
+async fn produce_db_request(mut storage_in_sender: Sender<DBOpIn>, op: DBOpIn) {
+	let _ = storage_in_sender.try_send(op);
+	op.result_sender.await;
 }
 
 async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
     let EmailAuthRequest { email } = req.body_json().await?;
-	let db_sender = req.state().db_sender.clone();
+	let storage_in_sender = req.state().storage_in_sender.clone();
 	let random_seed = rand::thread_rng().gen::<[u8; 32]>();
-	// let now = SystemTime::now();
-	// let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
 	let auth = EmailAuth::new(
 		&email,
 		random_seed,
@@ -43,36 +41,49 @@ async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
 
 	let auth_code = auth.get_code(None).expect("MPC Auth Error");
 	let code = String::from_utf8(auth_code.secret_key.to_vec());
-	let mutation = DBMutation {
-		key: (&auth_code.code).iter().cloned().collect(),
-		value: serde_json::to_string(&auth_code).unwrap().as_bytes().to_vec()
+
+	let (i, o) = oneshot::channel();
+
+	let s = auth_code.secret_key.to_vec();
+	let mut hasher = Blake2bVar::new(32).unwrap();
+	hasher.update(email.as_bytes());
+
+	let mut key = [0u8; 32];
+	hasher.finalize_variable(&mut key).unwrap();
+	let op = DBOpIn::WriteToDB {
+		key: key,
+		value: serde_json::to_string(&auth_code).unwrap().as_bytes().to_vec(),
+		result_sender: i
 	};
-	produce_db_request(db_sender, &mutation).await;
+
+	send_auth_code_to_email(email.as_str(), auth_code.code);
+	produce_db_request(storage_in_sender, op).await;
+	let res = o.await;
     Ok(format!("My email address is {}", email).into())
+}
+
+async fn shutdown_db(mut storage_in_sender: Sender<DBOpIn>) {
+	let (i, o) = oneshot::channel();
+	storage_in_sender.try_send(DBOpIn::Shutdown {
+		result_sender: i
+	});
+	let res = o.await;
 }
 
 #[async_std::main]
 async fn main() {
-	let (db_sender, mut db_receiver) = mpsc::channel(0);
+	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
+        format!("email-auth-code-storage"), false
+    );
+	run_db_server(storage_config);
+
 	let state = ServerState {
-		db_sender: db_sender
+		storage_in_sender: storage_in_sender.clone()
 	};
-
-	let mut storage = MpcStorage::new("email-auth-code-storage", false).expect("Storage not created!");
-
-	async_std::task::spawn(async move {
-		loop {
-			futures::select! {
-				req = db_receiver.select_next_some() => {
-					storage.put(&req.key, &req.value);
-					println!("{:?}", String::from_utf8(req.value).unwrap());
-					println!("{:?}", String::from_utf8(req.key).unwrap());
-				}
-			}
-		}
-	});
 
 	let mut app = tide::with_state(state);
     app.at("/email/auth/code").post(get_email_auth_code);
     app.listen("127.0.0.1:8080").await;
+
+	shutdown_db(storage_in_sender.clone()).await;
 }
