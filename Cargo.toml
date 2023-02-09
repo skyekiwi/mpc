@@ -6,7 +6,6 @@ members = [
     'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
     'crates/skw-mpc-storage',
-	'crates/skw-mpc-email-server',
     'crates/skw-round-based',
 ]
 
