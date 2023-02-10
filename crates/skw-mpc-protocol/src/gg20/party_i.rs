@@ -18,30 +18,30 @@
 
 use std::fmt::Debug;
 
-use centipede::juggling::proof_system::{Helgamalsegmented, Witness};
-use centipede::juggling::segmentation::Msegmentation;
-use curv::arithmetic::traits::*;
-use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
-use curv::cryptographic_primitives::commitments::traits::Commitment;
-use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::*;
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
-use curv::BigInt;
+use skw_crypto_centipede::juggling::proof_system::{Helgamalsegmented, Witness};
+use skw_crypto_centipede::juggling::segmentation::Msegmentation;
+use skw_crypto_curv::arithmetic::traits::*;
+use skw_crypto_curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
+use skw_crypto_curv::cryptographic_primitives::commitments::traits::Commitment;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::*;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
+use skw_crypto_curv::BigInt;
 use sha2::Sha256;
 
 use crate::Error::{self, InvalidSig, Phase5BadSum, Phase6Error};
-use paillier::{
+use skw_crypto_paillier::{
     Decrypt, DecryptionKey, EncryptionKey, KeyGeneration, Paillier, RawCiphertext, RawPlaintext,
 };
 
 use serde::{Deserialize, Serialize};
-use zk_paillier::zkproofs::NiCorrectKeyProof;
-use zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
+use skw_crypto_zk_paillier::zkproofs::NiCorrectKeyProof;
+use skw_crypto_zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
 
 use crate::gg20::ErrorType;
 use crate::utilities::zk_pdl_with_slack::{PDLwSlackProof, PDLwSlackStatement, PDLwSlackWitness};
-use curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
 
 use std::convert::TryInto;
 
@@ -282,7 +282,7 @@ impl Keys {
                     ) == bc1_vec[i].com
                         && bc1_vec[i]
                             .correct_key_proof
-                            .verify(&bc1_vec[i].e, zk_paillier::zkproofs::SALT_STRING)
+                            .verify(&bc1_vec[i].e, skw_crypto_zk_paillier::zkproofs::SALT_STRING)
                             .is_ok()
                         && bc1_vec[i].e.n.bit_length() >= PAILLIER_MIN_BIT_LENGTH
                         && bc1_vec[i].e.n.bit_length() <= PAILLIER_MAX_BIT_LENGTH

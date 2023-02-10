@@ -9,14 +9,14 @@
 //! 1) In Bob's proofs `gamma` is sampled from `[0;q^2 * N]` and `tau` from `[0;q^3 * N_tilde]`.
 //! 2) A non-interactive version is implemented, with challenge `e` computed via Fiat-Shamir.
 
-use curv::arithmetic::traits::*;
-use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
+use skw_crypto_curv::arithmetic::traits::*;
+use skw_crypto_curv::cryptographic_primitives::hashing::{Digest, DigestExt};
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
 use sha2::Sha256;
 
-use paillier::{EncryptionKey, Randomness};
-use zk_paillier::zkproofs::DLogStatement;
+use skw_crypto_paillier::{EncryptionKey, Randomness};
+use skw_crypto_zk_paillier::zkproofs::DLogStatement;
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
@@ -559,8 +559,8 @@ impl SampleFromMultiplicativeGroup for BigInt {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use paillier::traits::{Encrypt, EncryptWithChosenRandomness, KeyGeneration};
-    use paillier::{Add, DecryptionKey, Mul, Paillier, RawCiphertext, RawPlaintext};
+    use skw_crypto_paillier::traits::{Encrypt, EncryptWithChosenRandomness, KeyGeneration};
+    use skw_crypto_paillier::{Add, DecryptionKey, Mul, Paillier, RawCiphertext, RawPlaintext};
 
     fn generate(
         a_encrypted: &BigInt,

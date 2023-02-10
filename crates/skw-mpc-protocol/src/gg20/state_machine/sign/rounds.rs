@@ -6,10 +6,10 @@ use std::iter;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
-use curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
 use sha2::Sha256;
 
 use skw_round_based::{

@@ -22,11 +22,11 @@
 //! witness (x, r) such that Q = xG, c = Enc(pk, x, r)
 //! note that because of the range proof, the proof has a slack in the range: x in [-q^3, q^3]
 
-use curv::arithmetic::traits::*;
-use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
-use paillier::EncryptionKey;
+use skw_crypto_curv::arithmetic::traits::*;
+use skw_crypto_curv::cryptographic_primitives::hashing::{Digest, DigestExt};
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
+use skw_crypto_paillier::EncryptionKey;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use thiserror::Error;
