@@ -11,16 +11,7 @@ use libp2p::{
 
 use futures::channel::mpsc;
 
-#[cfg(feature = "full")]
-use skw_mpc_payload::{PayloadHeader};
-
-#[cfg(feature = "full")]
-use libp2p::{tcp, websocket};
-
-#[cfg(feature = "light")]
-use libp2p::wasm_ext;
-
-use behavior::{SkwMpcP2pCodec, SkwMpcP2pProtocol, MpcSwarmBahavior};
+use self::behavior::{MpcSwarmBahavior, SkwMpcP2pCodec, SkwMpcP2pProtocol};
 use crate::error::MpcNodeError;
 
 // re-export
@@ -29,31 +20,15 @@ pub use event_loop::MpcSwarmEventLoop;
 pub use behavior::{MpcP2pRequest, MpcP2pResponse};
 
 #[cfg(feature = "full")]
-pub fn new_full_swarm_node(
-    local_key: Option<[u8; 32]>
-) -> Result<(
-    PeerId, // local peer id
-    
-    MpcSwarmClient, 
-    MpcSwarmEventLoop, 
+pub use swarm_full::new_full_swarm_node;
 
-    mpsc::Receiver< Multiaddr >,
-    mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
-    mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
+#[cfg(feature = "light")]
+pub use swarm_light::new_light_swarm_node;
 
-    mpsc::Sender<bool>, // swarm termination
-), MpcNodeError> {
-    let local_key = match local_key {
-        None => identity::Keypair::generate_ed25519(),
-        Some(mut key) => {
-            identity::Keypair::Ed25519(
-                identity::ed25519::SecretKey::from_bytes(&mut key[..]).unwrap().into()
-            )
-        }
-    };
-
+#[cfg(feature = "tcp-ws-transport")]
+fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
+    use libp2p::{websocket, tcp};
     let local_peer_id = PeerId::from(local_key.public());
-    // eprintln!("Local peer id: {local_peer_id}");
 
     let transport = {
         let multiplexing_config = {
@@ -80,71 +55,19 @@ pub fn new_full_swarm_node(
             .boxed()
     };
 
-    let swarm = {
-        let request_response = request_response::Behaviour::<SkwMpcP2pCodec>::new(
-            SkwMpcP2pCodec(),
-            std::iter::once((SkwMpcP2pProtocol(), ProtocolSupport::Full)),
-            Default::default(),
-        );
-        let behaviour = MpcSwarmBahavior {  request_response, };
-        Swarm::with_async_std_executor(transport, behaviour, local_peer_id)
-    };
-
-    // the main message INCOMING channel 
-    let (swarm_incoming_message_sender, swarm_incoming_message_receiver) = mpsc::unbounded();
-    
-    // the new job notifier
-    let (swarm_incoming_job_sender, swarm_incoming_job_receiver) = mpsc::channel(0);
-
-    // the main outgoing channel
-    // we give it one buffer so that outgoing can be synced
-    let (command_sender, command_receiver) = mpsc::unbounded();
-
-    let (addr_sender, addr_receiver) = mpsc::channel(0);
-
-    let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
-    Ok( (
-        local_peer_id, 
-        MpcSwarmClient { command_sender },
-        MpcSwarmEventLoop::new(
-            swarm, 
-            swarm_incoming_message_sender,
-            swarm_incoming_job_sender, 
-            command_receiver,
-            addr_sender,
-            swarm_termination_receiver
-        ),
-
-        addr_receiver,
-        swarm_incoming_job_receiver,
-        swarm_incoming_message_receiver,
-        swarm_termination_sender,
-    ))
+    let request_response = request_response::Behaviour::<SkwMpcP2pCodec>::new(
+        SkwMpcP2pCodec(),
+        std::iter::once((SkwMpcP2pProtocol(), ProtocolSupport::Full)),
+        Default::default(),
+    );
+    let behaviour = MpcSwarmBahavior {  request_response, };
+    Swarm::with_async_std_executor(transport, behaviour, local_peer_id)
 }
 
-#[cfg(feature = "light")]
-pub fn new_light_swarm_node(
-    local_key: Option<[u8; 32]>
-) -> Result<(
-    PeerId, // local peer id
-    
-    MpcSwarmClient, 
-    MpcSwarmEventLoop, 
-
-    mpsc::Receiver< Multiaddr >,
-    mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
-
-    mpsc::Sender<bool>, // swarm termination
-), MpcNodeError> {
-    let local_key = match local_key {
-        None => identity::Keypair::generate_ed25519(),
-        Some(mut key) => {
-            identity::Keypair::Ed25519(
-                identity::ed25519::SecretKey::from_bytes(&mut key[..]).unwrap().into()
-            )
-        }
-    };
-
+#[cfg(feature = "wasm-transport")]
+fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
+    use libp2p::wasm_ext;
+    use libp2p::webrtc;
     let local_peer_id = PeerId::from(local_key.public());
 
     let transport = {
@@ -174,40 +97,136 @@ pub fn new_light_swarm_node(
             .boxed()
     };
 
-    let swarm = {
-        let request_response = request_response::Behaviour::<SkwMpcP2pCodec>::new(
-            SkwMpcP2pCodec(),
-            std::iter::once((SkwMpcP2pProtocol(), ProtocolSupport::Full)),
-            Default::default(),
-        );
-        let behaviour = MpcSwarmBahavior {  request_response, };
-        Swarm::with_wasm_executor(transport, behaviour, local_peer_id)
-    };
+    let request_response = request_response::Behaviour::<SkwMpcP2pCodec>::new(
+        SkwMpcP2pCodec(),
+        std::iter::once((SkwMpcP2pProtocol(), ProtocolSupport::Full)),
+        Default::default(),
+    );
+    let behaviour = MpcSwarmBahavior {  request_response, };
+    Swarm::with_wasm_executor(transport, behaviour, local_peer_id)
+}
 
-    // the main message INCOMING channel 
-    let (swarm_incoming_message_sender, swarm_incoming_message_receiver) = mpsc::unbounded();
+#[cfg(feature = "full")]
+mod swarm_full {
+    use super::*;
+    use skw_mpc_payload::{PayloadHeader};
 
-    // the main outgoing channel
-    // we give it one buffer so that outgoing can be synced
-    let (command_sender, command_receiver) = mpsc::unbounded();
+    pub fn new_full_swarm_node(
+        local_key: Option<[u8; 32]>
+    ) -> Result<(
+        PeerId, // local peer id
+        
+        MpcSwarmClient, 
+        MpcSwarmEventLoop, 
+    
+        mpsc::Receiver< Multiaddr >,
+        mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
+        mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
+    
+        mpsc::Sender<bool>, // swarm termination
+    ), MpcNodeError> {
+        let local_key = match local_key {
+            None => identity::Keypair::generate_ed25519(),
+            Some(mut key) => {
+                identity::Keypair::Ed25519(
+                    identity::ed25519::SecretKey::from_bytes(&mut key[..]).unwrap().into()
+                )
+            }
+        };
+    
+        let local_peer_id = PeerId::from(local_key.public());
+        // eprintln!("Local peer id: {local_peer_id}");
+    
+        let swarm = build_swarm(local_key);
+    
+        // the main message INCOMING channel 
+        let (swarm_incoming_message_sender, swarm_incoming_message_receiver) = mpsc::unbounded();
+        
+        // the new job notifier
+        let (swarm_incoming_job_sender, swarm_incoming_job_receiver) = mpsc::channel(0);
+    
+        // the main outgoing channel
+        // we give it one buffer so that outgoing can be synced
+        let (command_sender, command_receiver) = mpsc::unbounded();
+    
+        let (addr_sender, addr_receiver) = mpsc::channel(0);
+    
+        let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
+        Ok( (
+            local_peer_id, 
+            MpcSwarmClient { command_sender },
+            MpcSwarmEventLoop::new(
+                swarm, 
+                swarm_incoming_message_sender,
+                swarm_incoming_job_sender, 
+                command_receiver,
+                addr_sender,
+                swarm_termination_receiver
+            ),
+    
+            addr_receiver,
+            swarm_incoming_job_receiver,
+            swarm_incoming_message_receiver,
+            swarm_termination_sender,
+        ))
+    }
+    
+}
 
-    let (addr_sender, addr_receiver) = mpsc::channel(0);
+#[cfg(feature = "light")]
+mod swarm_light {
+    use super::*;
 
-    let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
-    Ok( (
-        local_peer_id, 
-        MpcSwarmClient { command_sender },
-        MpcSwarmEventLoop::new(
-            swarm, 
-            swarm_incoming_message_sender,
-            command_receiver,
-            addr_sender,
-            swarm_termination_receiver
-        ),
-
-        addr_receiver,
-        swarm_incoming_message_receiver,
-
-        swarm_termination_sender,
-    ))
+    pub fn new_light_swarm_node(
+        local_key: Option<[u8; 32]>
+    ) -> Result<(
+        PeerId, // local peer id
+        
+        MpcSwarmClient, 
+        MpcSwarmEventLoop, 
+    
+        mpsc::Receiver< Multiaddr >,
+        mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
+    
+        mpsc::Sender<bool>, // swarm termination
+    ), MpcNodeError> {
+        let local_key = match local_key {
+            None => identity::Keypair::generate_ed25519(),
+            Some(mut key) => {
+                identity::Keypair::Ed25519(
+                    identity::ed25519::SecretKey::from_bytes(&mut key[..]).unwrap().into()
+                )
+            }
+        };
+    
+        let local_peer_id = PeerId::from(local_key.public());
+        let swarm = build_swarm(local_key);
+    
+        // the main message INCOMING channel 
+        let (swarm_incoming_message_sender, swarm_incoming_message_receiver) = mpsc::unbounded();
+    
+        // the main outgoing channel
+        // we give it one buffer so that outgoing can be synced
+        let (command_sender, command_receiver) = mpsc::unbounded();
+    
+        let (addr_sender, addr_receiver) = mpsc::channel(0);
+    
+        let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
+        Ok( (
+            local_peer_id, 
+            MpcSwarmClient { command_sender },
+            MpcSwarmEventLoop::new(
+                swarm, 
+                swarm_incoming_message_sender,
+                command_receiver,
+                addr_sender,
+                swarm_termination_receiver
+            ),
+    
+            addr_receiver,
+            swarm_incoming_message_receiver,
+    
+            swarm_termination_sender,
+        ))
+    }    
 }

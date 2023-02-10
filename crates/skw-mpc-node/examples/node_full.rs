@@ -14,7 +14,7 @@ async fn main() -> Result<(), MpcNodeError> {
     let node1 = client
         .bootstrap_node(
             Some([1u8; 32]), 
-            "/ip4/100.104.199.31/tcp/0/ws".to_string(), 
+            "/ip4/10.0.0.3/tcp/2619/ws".to_string(), 
             "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
         )
         .await
@@ -23,7 +23,7 @@ async fn main() -> Result<(), MpcNodeError> {
     let node2 = client
         .bootstrap_node(
             Some([2u8; 32]), 
-            "/ip4/100.104.199.31/tcp/0/ws".to_string(), 
+            "/ip4/10.0.0.3/tcp/2618/ws".to_string(), 
             "mpc-storage-db-12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq".to_string()
         )
         .await

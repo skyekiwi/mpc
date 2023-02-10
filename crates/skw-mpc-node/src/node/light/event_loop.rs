@@ -54,7 +54,6 @@ async fn assign_job(
 pub async fn light_node_event_loop(
     mut client_in: mpsc::Receiver<ClientRequest>
 ) {
-
     let mut external_request_channels: HashMap<PeerId, mpsc::Sender<(
         PayloadHeader, 
         AuthHeader,

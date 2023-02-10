@@ -1,7 +1,8 @@
 use libp2p::PeerId;
+use serde::{Serialize, Deserialize};
 use skw_mpc_payload::CryptoHash;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientOutcome {
     KeyGen{ 
         peer_id: PeerId,
