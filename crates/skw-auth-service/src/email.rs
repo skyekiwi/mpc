@@ -1,14 +1,21 @@
-fn send_auth_code_to_email(email: &str, auth_code: &[u8; _]) {
-	sendgrid_body = json!({
+use std::env;
+use serde_json::json;
+
+use skw_mpc_auth::types::CODE_LEN;
+
+pub async fn send_auth_code_to_email(receiver_email: &str, auth_code: &[u8; CODE_LEN]) {
+	let mut sendgrid_api_key = env::var("SENDGRID_API_KEY").unwrap();
+	let mut sender_email = env::var("SENDER_EMAIL").unwrap();
+	let sendgrid_body = json!({
 		"personalizations": [
 			{
 				"to": [
-					{"email": email.as_str()}
+					{"email": receiver_email}
 				]
 			}
 		],
 		"from": {
-			"email": "test@choko.app"
+			"email": sender_email.as_str()
 		},
 		"subject": "Verification Code",
 		"content": [
@@ -18,10 +25,13 @@ fn send_auth_code_to_email(email: &str, auth_code: &[u8; _]) {
 			}
 		]
 	});
+	let authorization_header = format!("Bearer {}", sendgrid_api_key);
 	let response = reqwest::Client::new()
         .post("https://api.sendgrid.com/v3/mail/send")
-		.header("Authorization", "Bearer ")
+		.header("Authorization", authorization_header)
 		.header("Content-Type", "application/json")
         .json(&sendgrid_body)
-        .send().await?;
+        .send().await;
+	println!("{:?}" , response);
+	// Ok(());
 }

@@ -11,8 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake2::{Blake2bVar, Digest};
 use blake2::digest::{Update, VariableOutput};
-use crate::email::send_auth_code_to_email;
-
+use skw_auth_service::email::send_auth_code_to_email;
 
 #[derive(Debug, Deserialize)]
 struct EmailAuthRequest {
@@ -26,7 +25,6 @@ struct ServerState {
 
 async fn produce_db_request(mut storage_in_sender: Sender<DBOpIn>, op: DBOpIn) {
 	let _ = storage_in_sender.try_send(op);
-	op.result_sender.await;
 }
 
 async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
@@ -41,8 +39,7 @@ async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
 
 	let auth_code = auth.get_code(None).expect("MPC Auth Error");
 	let code = String::from_utf8(auth_code.secret_key.to_vec());
-
-	let (i, o) = oneshot::channel();
+	send_auth_code_to_email(email.as_str(), &auth_code.code).await;
 
 	let s = auth_code.secret_key.to_vec();
 	let mut hasher = Blake2bVar::new(32).unwrap();
@@ -50,13 +47,13 @@ async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
 
 	let mut key = [0u8; 32];
 	hasher.finalize_variable(&mut key).unwrap();
+
+	let (i, o) = oneshot::channel();
 	let op = DBOpIn::WriteToDB {
 		key: key,
 		value: serde_json::to_string(&auth_code).unwrap().as_bytes().to_vec(),
 		result_sender: i
 	};
-
-	send_auth_code_to_email(email.as_str(), auth_code.code);
 	produce_db_request(storage_in_sender, op).await;
 	let res = o.await;
     Ok(format!("My email address is {}", email).into())
