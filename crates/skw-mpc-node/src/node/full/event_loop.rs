@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use curv::elliptic::curves::Secp256k1;
 use futures::{channel::{oneshot, mpsc}, StreamExt, SinkExt, stream::FuturesUnordered};
 use libp2p::PeerId;
+use skw_crypto_curv::elliptic::curves::Secp256k1;
 use skw_mpc_payload::{header::PayloadType, PayloadHeader, CryptoHash};
 use skw_mpc_protocol::gg20::state_machine::keygen::LocalKey;
 use skw_mpc_storage::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};

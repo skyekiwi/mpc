@@ -3,9 +3,9 @@ use libp2p::{PeerId, Multiaddr};
 
 use crate::error::MpcNodeError;
 
-#[cfg(feature = "light")]
+#[cfg(feature = "light-node")]
 use super::client_outcome::ClientOutcome;
-#[cfg(feature = "light")]
+#[cfg(feature = "light-node")]
 use skw_mpc_payload::{PayloadHeader, AuthHeader};
 
 pub enum ClientRequest {
@@ -21,7 +21,7 @@ pub enum ClientRequest {
         >
     },
 
-    #[cfg(feature = "full")]
+    #[cfg(feature = "full-node")]
     WriteToDB {
         node: PeerId,
         key: [u8; 32],
@@ -30,7 +30,7 @@ pub enum ClientRequest {
         result_sender: oneshot::Sender<bool>,
     },
 
-    #[cfg(feature = "light")]
+    #[cfg(feature = "light-node")]
     MpcRequest {
         from: PeerId,
         payload_header: PayloadHeader,

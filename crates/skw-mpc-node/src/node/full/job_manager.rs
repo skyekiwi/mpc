@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
-use async_std::stream::StreamExt;
-use curv::{BigInt, arithmetic::Converter};
-use futures::{channel::{mpsc, oneshot}, TryStreamExt};
-
+use futures::{channel::{mpsc, oneshot}, StreamExt, TryStreamExt};
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, de::DeserializeOwned};
+
+use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
+use skw_crypto_curv::{BigInt, arithmetic::Converter};
+
 use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, header::PayloadType};
 use skw_round_based::{async_runtime::AsyncProtocol, Msg};
-
 use skw_mpc_protocol::gg20::state_machine::{keygen::{self, LocalKey}, sign::{self, SignManual, PartialSignature}};
-use curv::elliptic::curves::secp256_k1::Secp256k1;
 
 use crate::{
     swarm::{MpcSwarmClient, MpcP2pRequest}, 
@@ -299,6 +298,8 @@ impl<'node> JobManager<'node> {
             // this is a broadcast message
             None => {
                 for peer in payload.clone().payload_header.peers {
+
+                    println!("Outgoing to Peer {:?}", peer);
                     if peer.0.to_string() != self.local_peer_id.to_string() {
                         self.client
                             .dial(peer.0, peer.1)

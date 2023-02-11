@@ -7,7 +7,7 @@ use skw_mpc_node::{
 };
 use skw_mpc_payload::{PayloadHeader, header::PayloadType, AuthHeader};
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     
     let (client_request_sender, client_request_receiver) = mpsc::channel(0);
@@ -17,12 +17,13 @@ async fn main() {
     let node1 = client
         .bootstrap_node(
             Some([3u8; 32]), 
-            "/ip4/10.0.0.3/tcp/0/ws".to_string(), 
+            "/ip4/10.0.0.3/tcp/0/ws".to_string(),
             "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
         )
         .await
         .expect("creating not should not fail");
 
+    println!("{:?}", node1);
     let node2 = (
         "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".parse().unwrap(), 
         "/ip4/10.0.0.3/tcp/2619/ws/p2p/12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".parse().unwrap()

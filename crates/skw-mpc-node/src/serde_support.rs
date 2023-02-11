@@ -5,7 +5,7 @@ use skw_mpc_protocol::gg20::{
     party_i::SignatureRecid
 };
 
-use curv::elliptic::curves::secp256_k1::Secp256k1;
+use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
 
 use crate::error::MpcNodeError;
 

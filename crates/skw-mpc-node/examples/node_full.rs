@@ -1,11 +1,11 @@
 use futures::channel::mpsc;
 use skw_mpc_node::{
     node::{full_node_event_loop, NodeClient},
-    error::MpcNodeError, async_executor
+    async_executor
 };
 
-#[async_std::main]
-async fn main() -> Result<(), MpcNodeError> {
+#[tokio::main]
+async fn main() {
     let (client_request_sender, client_request_receiver) = mpsc::channel(0);
 
     async_executor(full_node_event_loop(client_request_receiver));

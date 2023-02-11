@@ -10,7 +10,7 @@ use libp2p::{
 use futures::{StreamExt, FutureExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
-#[cfg(feature = "full")]
+#[cfg(feature = "full-node")]
 use skw_mpc_payload::{PayloadHeader};
 
 use super::{
@@ -25,7 +25,7 @@ pub struct MpcSwarmEventLoop {
 
     swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
 
-    #[cfg(feature = "full")]
+    #[cfg(feature = "full-node")]
     swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
 
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
@@ -43,7 +43,7 @@ impl MpcSwarmEventLoop {
 
         swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
 
-        #[cfg(feature = "full")]
+        #[cfg(feature = "full-node")]
         swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
     
         command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
@@ -57,7 +57,7 @@ impl MpcSwarmEventLoop {
 
             swarm_incoming_message_sender, 
             
-            #[cfg(feature = "full")]
+            #[cfg(feature = "full-node")]
             swarm_incoming_job_sender,
             
             command_receiver, 
@@ -111,7 +111,6 @@ impl MpcSwarmEventLoop {
                     address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
                 );
             }
-            SwarmEvent::IncomingConnection { .. } => {}
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
@@ -148,7 +147,7 @@ impl MpcSwarmEventLoop {
                     match request {
                         MpcP2pRequest::StartJob { job_header, .. } => {
 
-                            #[cfg(feature = "full")]
+                            #[cfg(feature = "full-node")]
                             {
                                 // if the auth_header is invalid - send error
                                 // if !auth_header.validate() {
@@ -183,7 +182,7 @@ impl MpcSwarmEventLoop {
                             }
 
                             // NOP for light node - light node client never receive StartJob Request
-                            #[cfg(feature = "light")] 
+                            #[cfg(feature = "light-node")] 
                             {}
                         },
 

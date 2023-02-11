@@ -30,7 +30,7 @@ async fn assign_job(
             );
         },
         PayloadType::SignOffline {
-            message, keygen_id, keygen_peers
+            message, keygen_peers, ..
         }=> {
             job_manager.sign_accept_new_job(
                 payload_header.clone(), 
@@ -66,8 +66,7 @@ pub async fn light_node_event_loop(
     loop {
         let client_request = client_in.select_next_some().await;
         match client_request {
-            ClientRequest::BootstrapNode { local_key, listen_addr, db_name, result_sender } => {
-                
+            ClientRequest::BootstrapNode { local_key, listen_addr, result_sender, .. } => {    
                 // Wire up this node to receive external request
                 let (external_request_sender, mut external_request_receiver) = mpsc::channel::<(
                     PayloadHeader, 

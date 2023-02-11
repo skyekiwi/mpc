@@ -5,9 +5,9 @@ use crate::error::MpcNodeError;
 
 use super::ClientRequest;
 
-#[cfg(feature = "light")]
+#[cfg(feature = "light-node")]
 use super::client_outcome::ClientOutcome;
-#[cfg(feature = "light")]
+#[cfg(feature = "light-node")]
 use skw_mpc_payload::{PayloadHeader, AuthHeader};
 
 pub struct NodeClient {
@@ -40,7 +40,7 @@ impl NodeClient {
             .expect("sender not to dropped")
     }
 
-    #[cfg(feature = "light")]
+    #[cfg(feature = "light-node")]
     pub async fn send_request(
         &mut self,
         from: PeerId,
@@ -72,7 +72,7 @@ impl NodeClient {
             .expect("sender not to dropped")
     }
 
-    #[cfg(feature = "full")]
+    #[cfg(feature = "full-node")]
     pub async fn write_to_db(&mut self, node: PeerId, key: [u8; 32], value: Vec<u8>) -> Result<bool, MpcNodeError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.external_request_sender

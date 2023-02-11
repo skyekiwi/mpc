@@ -11,5 +11,5 @@ pub fn async_executor<F>(future: F)
     wasm_bindgen_futures::spawn_local(future);
 
     #[cfg(not(target_arch = "wasm32"))]
-    async_std::task::spawn(future);
+    tokio::spawn(future);
 }
