@@ -108,12 +108,12 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
 pub fn new_swarm_node(
     #[cfg(feature = "full-node")] bootstrapped_client: NodeClient,
     local_key: Option<[u8; 32]>
-) -> Result<(
+) -> (
     PeerId, // local peer id
     MpcSwarmClient, 
     MpcSwarmEventLoop,
-    mpsc::Sender<bool>, // swarm termination
-), MpcClientError> {
+    mpsc::Sender<()>, // swarm termination
+) {
     let local_key = match local_key {
         None => identity::Keypair::generate_ed25519(),
         Some(mut key) => {
@@ -131,7 +131,7 @@ pub fn new_swarm_node(
     let (command_sender, command_receiver) = mpsc::unbounded();
     let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
 
-    Ok( (
+    (
         local_peer_id, 
         MpcSwarmClient { command_sender },
         MpcSwarmEventLoop::new(
@@ -141,5 +141,5 @@ pub fn new_swarm_node(
             swarm_termination_receiver
         ),
         swarm_termination_sender,
-    ))
+    )
 }

@@ -7,7 +7,7 @@ use skw_mpc_protocol::gg20::{
 
 use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
 
-use crate::error::MpcNodeError;
+use crate::error::{MpcNodeError, SerdeError};
 
 pub fn encode_payload<M>(payload: &Payload<M>) -> Vec<u8>
     where M: Serialize + DeserializeOwned 
@@ -20,7 +20,7 @@ pub fn decode_payload<M>(payload: &[u8]) -> Result<M, MpcNodeError>
     where M: Serialize + DeserializeOwned 
 {
     serde_json::from_slice(payload)
-        .map_err(|_| MpcNodeError::FailToDeserilaizePayload)
+        .map_err(|_| MpcNodeError::SerdeError(SerdeError::DeserializePayload))
 }
 
 pub fn encode_key(key: &LocalKey<Secp256k1>) -> Vec<u8> {
@@ -28,9 +28,9 @@ pub fn encode_key(key: &LocalKey<Secp256k1>) -> Vec<u8> {
         .expect("a valid outgoing payload")
 }
 
-pub fn decode_key(raw_key: &[u8]) -> LocalKey<Secp256k1> {
+pub fn decode_key(raw_key: &[u8]) -> Result<LocalKey<Secp256k1>, MpcNodeError> {
     serde_json::from_slice(raw_key)
-        .expect("incoming payload not valid")
+        .map_err(|_| MpcNodeError::SerdeError(SerdeError::DeserializeLocalKey))
 }
 
 pub fn encode_signature(sig: &SignatureRecid) -> Vec<u8> {
@@ -38,7 +38,7 @@ pub fn encode_signature(sig: &SignatureRecid) -> Vec<u8> {
         .expect("a valid partial sig")
 }
 
-pub fn decode_signature(raw_sig: &[u8]) -> SignatureRecid {
+pub fn decode_signature(raw_sig: &[u8]) -> Result<SignatureRecid, MpcNodeError> {
     serde_json::from_slice(raw_sig)
-        .expect("incoming partial sig not valid")
+    .map_err(|_| MpcNodeError::SerdeError(SerdeError::DeserializeSignature))
 }

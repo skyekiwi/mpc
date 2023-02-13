@@ -15,5 +15,7 @@ skw-mpc-payload = { path = "../skw-mpc-payload" }
 futures = "0.3.1"
 wasm-bindgen-futures = "0.4.34"
 console_error_panic_hook = "0.1.7"
+console_log = { version = "0.2", features = ["color"] }
+log = "0.4.17"
 
 rand = { version = "0.8" }

@@ -739,6 +739,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "501a375961cef1a0d44767200e66e4a559283097e91d0730b1d75dfb2f8a1494"
+dependencies = [
+ "log",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1329,12 +1340,25 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
+dependencies = [
+ "atty",
+ "humantime 1.3.0",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
 dependencies = [
  "atty",
- "humantime",
+ "humantime 2.1.0",
  "log",
  "regex",
  "termcolor",
@@ -1807,6 +1831,15 @@ name = "httparse"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d897f394bad6a705d5f4104762e116a75639e470d80901eed05a860a95cb1904"
+
+[[package]]
+name = "humantime"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
+dependencies = [
+ "quick-error",
+]
 
 [[package]]
 name = "humantime"
@@ -3114,6 +3147,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
+name = "pretty_env_logger"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
+dependencies = [
+ "env_logger 0.7.1",
+ "log",
+]
+
+[[package]]
 name = "prettyplease"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4179,10 +4222,13 @@ dependencies = [
  "futures",
  "getrandom 0.2.8",
  "libp2p",
+ "log",
+ "pretty_env_logger",
  "serde",
  "serde_json",
  "skw-mpc-node",
  "skw-mpc-payload",
+ "thiserror",
  "tokio",
  "wasm-bindgen-futures",
 ]
@@ -4197,6 +4243,8 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "libp2p",
+ "log",
+ "pretty_env_logger",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -4205,6 +4253,7 @@ dependencies = [
  "skw-mpc-protocol",
  "skw-mpc-storage",
  "skw-round-based",
+ "thiserror",
  "tokio",
 ]
 
@@ -4244,6 +4293,7 @@ dependencies = [
  "futures",
  "rusty-leveldb",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -4251,7 +4301,9 @@ name = "skw-mpc-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "console_log",
  "futures",
+ "log",
  "rand 0.8.5",
  "skw-mpc-client",
  "skw-mpc-payload",
@@ -4264,7 +4316,7 @@ name = "skw-round-based"
 version = "0.1.7"
 dependencies = [
  "async-stream",
- "env_logger",
+ "env_logger 0.9.3",
  "futures",
  "libp2p",
  "log",

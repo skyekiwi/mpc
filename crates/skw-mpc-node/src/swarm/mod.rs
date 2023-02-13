@@ -12,7 +12,6 @@ use libp2p::{
 use futures::channel::mpsc;
 
 use self::behavior::{MpcSwarmBahavior, SkwMpcP2pCodec, SkwMpcP2pProtocol};
-use crate::error::MpcNodeError;
 
 // re-export
 pub use client::MpcSwarmClient;
@@ -72,7 +71,7 @@ mod swarm_full {
 
     pub fn new_full_swarm_node(
         local_key: Option<[u8; 32]>
-    ) -> Result<(
+    ) -> (
         PeerId, // local peer id
         
         MpcSwarmClient, 
@@ -82,8 +81,8 @@ mod swarm_full {
         mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
         mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
     
-        mpsc::Sender<bool>, // swarm termination
-    ), MpcNodeError> {
+        mpsc::Sender<()>, // swarm termination
+    ) {
         let local_key = match local_key {
             None => identity::Keypair::generate_ed25519(),
             Some(mut key) => {
@@ -111,7 +110,7 @@ mod swarm_full {
         let (addr_sender, addr_receiver) = mpsc::channel(0);
     
         let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
-        Ok( (
+        (
             local_peer_id, 
             MpcSwarmClient { command_sender },
             MpcSwarmEventLoop::new(
@@ -127,7 +126,7 @@ mod swarm_full {
             swarm_incoming_job_receiver,
             swarm_incoming_message_receiver,
             swarm_termination_sender,
-        ))
+        )
     }
     
 }
@@ -138,7 +137,7 @@ mod swarm_light {
 
     pub fn new_light_swarm_node(
         local_key: Option<[u8; 32]>
-    ) -> Result<(
+    ) -> (
         PeerId, // local peer id
         
         MpcSwarmClient, 
@@ -147,8 +146,8 @@ mod swarm_light {
         mpsc::Receiver< Multiaddr >,
         mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
     
-        mpsc::Sender<bool>, // swarm termination
-    ), MpcNodeError> {
+        mpsc::Sender<()>, // swarm termination
+    ) {
         let local_key = match local_key {
             None => identity::Keypair::generate_ed25519(),
             Some(mut key) => {
@@ -171,7 +170,7 @@ mod swarm_light {
         let (addr_sender, addr_receiver) = mpsc::channel(0);
     
         let (swarm_termination_sender, swarm_termination_receiver) = mpsc::channel(0);
-        Ok( (
+        (
             local_peer_id, 
             MpcSwarmClient { command_sender },
             MpcSwarmEventLoop::new(
@@ -186,6 +185,6 @@ mod swarm_light {
             swarm_incoming_message_receiver,
     
             swarm_termination_sender,
-        ))
+        )
     }    
 }

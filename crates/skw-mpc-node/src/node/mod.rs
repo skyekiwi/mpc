@@ -1,6 +1,7 @@
 mod client_outcome;
 mod client_request;
 mod client;
+mod job_manager;
 
 #[cfg(feature = "full-node")]
 mod full;

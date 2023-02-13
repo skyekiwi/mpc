@@ -1,19 +1,21 @@
 use std::collections::HashMap;
-use futures::{channel::{mpsc, oneshot}, TryStreamExt, StreamExt};
 
+use futures::{channel::{mpsc, oneshot}, StreamExt, TryStreamExt};
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, de::DeserializeOwned};
 
 use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
 use skw_crypto_curv::{BigInt, arithmetic::Converter};
 
-use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, AuthHeader, header::PayloadType};
+use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, header::PayloadType};
 use skw_round_based::{async_runtime::AsyncProtocol, Msg};
 use skw_mpc_protocol::gg20::state_machine::{keygen::{self, LocalKey}, sign::{self, SignManual, PartialSignature}};
 
 use crate::{
-    swarm::{MpcSwarmClient, MpcP2pRequest}, 
-    serde_support::{decode_payload, encode_payload, encode_key, encode_signature}, error::MpcNodeError, async_executor
+    async_executor,
+    swarm::{MpcSwarmClient, MpcP2pRequest, MpcP2pResponse}, 
+    serde_support::{decode_payload, encode_payload, encode_key, encode_signature}, 
+    error::{MpcNodeError, MpcProtocolError, NodeError}, 
 };
 
 use crate::node::client_outcome::ClientOutcome;
@@ -22,6 +24,8 @@ type KeyGenMessage = Msg<keygen::ProtocolMessage>;
 type SignOfflineMessage = Msg<sign::OfflineProtocolMessage>;
 type PartialSignatureMessage = Msg<PartialSignature>;
 
+#[cfg(feature = "light-node")]
+use skw_mpc_payload::AuthHeader;
 
 // 'node should be the same as 'static for most of the time
 pub struct JobManager<'node> {
@@ -64,26 +68,23 @@ impl<'node> JobManager<'node> {
         }
     }
 
-    // KeyGen Handlers
+    #[cfg(feature = "light-node")]
     pub async fn init_new_job(&mut self, 
         new_auth_header: AuthHeader, 
         new_header: PayloadHeader,
-    ) {
+    ) -> Result<(), MpcNodeError> {
         for (peer, peer_addr) in new_header.clone().peers.iter() {    
             if peer.clone() != self.local_peer_id.clone() {
-                self.client.dial(peer.clone(), peer_addr.clone())
-                    .await
-                    .expect("dailing to be not failed");
+                self.client.dial(peer.clone(), peer_addr.clone()).await?;
                 self.client.send_request( peer.clone(), 
                     MpcP2pRequest::StartJob { 
                         auth_header: new_auth_header.clone(),
                         job_header: new_header.clone(), 
                     }
-                )
-                    .await
-                    .expect("request should be taken");
+                ).await?;
             }
         }
+        Ok(())
     }
 
     pub fn keygen_accept_new_job(&mut self, 
@@ -91,7 +92,6 @@ impl<'node> JobManager<'node> {
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
     ) {
         let job_id = new_header.clone().payload_id;
-
         let local_peer_id = self.local_peer_id.clone();
         let (incoming_sender, incoming_receiver) = mpsc::channel(2);
         let outgoing_sender = self.keygen_outgoing_sender.clone();
@@ -104,28 +104,41 @@ impl<'node> JobManager<'node> {
                 .unwrap()
                 .saturating_add(1);
 
-            let keygen_sm = keygen::Keygen::new(
+            match keygen::Keygen::new(
                 local_index.try_into().unwrap(), 
                 new_header.t.saturating_sub(1), // we need to sub t by 1 - ref to kzen-curv's VSS impl
                 new_header.n
-            )
-                .map_err(|e| { println!("Protocl Error {:?}", e) })
-                .unwrap();
-            let output = AsyncProtocol::new(keygen_sm, 
-                incoming_receiver, 
-                outgoing_sender,
-                new_header.clone()
-            )
-                .run()
-                .await; // TODO: discard all error?
-
-            result_sender
-                .send(Ok(ClientOutcome::KeyGen {
-                    peer_id: local_peer_id,
-                    payload_id: new_header.payload_id,
-                    local_key: encode_key(&output.unwrap())
-                }))
-                .expect("result_receiver not to be dropped");
+            ) {
+                Ok(keygen_sm) => {
+                    match AsyncProtocol::new(keygen_sm, 
+                        incoming_receiver, outgoing_sender,
+                        new_header.clone()
+                    )
+                        .run()
+                        .await
+                    {
+                        Ok(local_key) => {
+                            result_sender
+                            .send(Ok(ClientOutcome::KeyGen {
+                                peer_id: local_peer_id,
+                                payload_id: new_header.payload_id,
+                                local_key: encode_key(&local_key)
+                            }))
+                            .expect("result_receiver not to be dropped")
+                        },
+                        Err(e) => {
+                            result_sender
+                                .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyGenError(e.to_string()))))
+                                .expect("result_receiver not to be dropped");
+                        }
+                    }
+                },
+                Err(e) => {
+                    result_sender
+                        .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyGenError(e.to_string()))))
+                        .expect("result_receiver not to be dropped");
+                }
+            }
         });
     }
 
@@ -169,75 +182,92 @@ impl<'node> JobManager<'node> {
                 peers_index.push(peer_index);
             }
 
-            let offline_sign = sign::OfflineStage::new(
-                local_index,
-                peers_index,
-                local_key
-            )
-                .map_err(|e| { println!("Protocl Error {:?}", e) })
-                .unwrap();
-
-            let output = AsyncProtocol::new(offline_sign, 
-                incoming_receiver, 
-                outgoing_sender,
-                new_header.clone()
-            )
-                .run()
-                .await // TODO: discard all error?
-                .unwrap();
-
-            let (signing, partial_signature) = SignManual::new(
-                BigInt::from_bytes(&message[..]), 
-                output
-            )
-                .unwrap();
-
-            let mut sign_fianlize_header = new_header.clone();
-            sign_fianlize_header.payload_type = PayloadType::SignFinalize;
-
-            sign_fianlize_partial_signature_outgoing_sender
-                .unbounded_send(Payload { 
-                    payload_header: sign_fianlize_header, 
-                    body: Msg {
-                        sender: local_index,
-                        receiver: None,
-                        body: partial_signature
+            match sign::OfflineStage::new(
+                local_index, peers_index, local_key
+            ) {
+                Ok(offline_sign_sm) => {
+                    match AsyncProtocol::new(offline_sign_sm, 
+                        incoming_receiver, outgoing_sender,
+                        new_header.clone()
+                    )
+                        .run()
+                        .await
+                    {
+                        Ok(completed_offline_stage) => {
+                            match SignManual::new(
+                                BigInt::from_bytes(&message[..]), 
+                                completed_offline_stage
+                            ) {
+                                Ok((signing, partial_signature)) => {
+                                    let mut sign_fianlize_header = new_header.clone();
+                                    sign_fianlize_header.payload_type = PayloadType::SignFinalize;
+                        
+                                    sign_fianlize_partial_signature_outgoing_sender
+                                        .unbounded_send(Payload { 
+                                            payload_header: sign_fianlize_header, 
+                                            body: Msg {
+                                                sender: local_index, receiver: None,
+                                                body: partial_signature
+                                            }
+                                        })
+                                        .expect("sign_fianlize_partial_signature_outgoing_sender channel should not be dropped");
+                                    
+                                    // let partial_sigs_payload: Vec<Payload<PartialSignatureMessage>> = 
+                                    match incoming_partial_sig_receiver
+                                        .take(new_header.clone().peers.len() - 1)
+                                        .try_collect::<Vec<Payload<PartialSignatureMessage>>>()
+                                        .await
+                                    {
+                                        Ok(partial_sigs_payload) => {
+                                            let partial_sigs: Vec<PartialSignature> = partial_sigs_payload
+                                                .iter()
+                                                .map(|p| p.body.clone().body)
+                                                .collect();
+                                            match signing
+                                                .complete(&partial_sigs)
+                                            {
+                                                Ok(sig) => {
+                                                    result_sender
+                                                        .send(Ok(ClientOutcome::Sign {
+                                                            peer_id: local_peer_id,
+                                                            payload_id: new_header.payload_id,
+                                                            sig: encode_signature(&sig),
+                                                        }))
+                                                        .expect("result_receiver not to be dropped");
+                                                },
+                                                Err(e) => {
+                                                    result_sender
+                                                        .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::SignError(e.to_string()))))
+                                                        .expect("result_receiver not to be dropped")
+                                                }
+                                            }
+                                        },
+                                        Err(e) => result_sender
+                                            .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::SignError(e.to_string()))))
+                                            .expect("result_receiver not to be dropped")
+                                    }; 
+                                },
+                                Err(e) => result_sender
+                                    .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::SignError(e.to_string()))))
+                                    .expect("result_receiver not to be dropped")
+                            };
+                        },
+                        Err(e) => result_sender
+                                .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::SignError(e.to_string()))))
+                                .expect("result_receiver not to be dropped")
                     }
-                })
-                .expect("sign_fianlize_partial_signature_outgoing_sender channel should not be dropped");
-            
-            let partial_sigs_payload: Vec<Payload<PartialSignatureMessage>> = incoming_partial_sig_receiver
-                .take(new_header.clone().peers.len() - 1)
-                .try_collect()
-                .await
-                .unwrap();
-            let partial_sigs: Vec<PartialSignature> = partial_sigs_payload
-                .iter()
-                .map(|p| p.body.clone().body)
-                .collect();
-        
-            let signature = signing
-                .complete(&partial_sigs)
-                .map_err(|e| {
-                    println!("sign failure online {:?}", e);
-                    MpcNodeError::P2pBadPayload
-                })
-                .unwrap(); // TODO
-
-            result_sender
-                .send(Ok(ClientOutcome::Sign {
-                    peer_id: local_peer_id,
-                    payload_id: new_header.payload_id,
-                    sig: encode_signature(&signature),
-                }))
-                .expect("result_receiver not to be dropped");
+                },
+                Err(e) => result_sender
+                    .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::SignError(e.to_string()))))
+                    .expect("result_receiver not to be dropped")
+            };
         });
     }
 
     pub async fn handle_incoming(&mut self,
         raw_payload: &[u8],
-    ) {
-        // TODO: currently - we try to guess the type of the payload ... there might be another way
+    ) -> Result<(), MpcNodeError> {
+        // Note: currently - we try to guess the type of the payload ... there might be another way
         let maybe_payload_keygen: Result<Payload<KeyGenMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
         let maybe_payload_sign_offline: Result<Payload<SignOfflineMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
         let maybe_payload_partial_sig: Result<Payload<PartialSignatureMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
@@ -255,10 +285,7 @@ impl<'node> JobManager<'node> {
                     panic!("unknown job");
                 }
             }
-        } else 
-        
-        
-        if maybe_payload_sign_offline.is_ok() {
+        } else if maybe_payload_sign_offline.is_ok() {
             let payload = maybe_payload_sign_offline.unwrap();
             let job_id = &payload.payload_header.payload_id;
             let channel = self.sign_offline_protocol_incoming_channel.get_mut(job_id);
@@ -271,9 +298,7 @@ impl<'node> JobManager<'node> {
                     panic!("unknown job");
                 }
             }
-        }
-
-        if maybe_payload_partial_sig.is_ok() {
+        } else if maybe_payload_partial_sig.is_ok() {
             let payload = maybe_payload_partial_sig.unwrap();
             let job_id = &payload.payload_header.payload_id;
             let channel = self.sign_fianlize_partial_signature_incoming_channel.get_mut(job_id);
@@ -286,13 +311,17 @@ impl<'node> JobManager<'node> {
                     panic!("unknown job");
                 }
             }
+        } else {
+            return Err(MpcNodeError::NodeError(NodeError::InputUnknown));
         }
+
+        Ok(())
     }
 
 
     pub async fn handle_outgoing<M>(&mut self, 
         payload: Payload<Msg<M>>,
-    ) 
+    ) -> Result<(), MpcNodeError>
         where M: Clone + Serialize + DeserializeOwned
     {
         let local_peer_id = self.local_peer_id.clone();
@@ -300,22 +329,27 @@ impl<'node> JobManager<'node> {
         match payload.body.receiver {
             // this is a p2p message - only one receiver is assigned
             Some(to) => {
-                assert!(to >= 1 && to <= payload.payload_header.peers.len() as u16, "wrong receiver index");
+                if to < 1 && to > payload.payload_header.peers.len() as u16 {
+                    return Err(MpcNodeError::NodeError(NodeError::InvalidOutgoingParameter));
+                }
                 let to_peer = payload.payload_header.peers[(to - 1) as usize].clone();
-                
+
                 self.client
                     .dial(to_peer.0, to_peer.1)
-                    .await
-                    .expect("client should not be dropped");
+                    .await?;
                 
                 let mut payload_out = payload.clone();
                 payload_out.payload_header.sender = local_peer_id;
-                self.client
+                if let MpcP2pResponse::RawMessage { status } = self.client
                     .send_request(to_peer.0, MpcP2pRequest::RawMessage { 
                         payload: encode_payload(&payload_out)
-                     })
-                    .await
-                    .expect("client should not be dropped, node should take in this request");
+                        })
+                    .await? 
+                {
+                    status?;
+                } else {
+                    unreachable!()
+                }
             },
             // this is a broadcast message
             None => {
@@ -323,22 +357,26 @@ impl<'node> JobManager<'node> {
                     if peer.0.to_string() != self.local_peer_id.to_string() {
                         self.client
                             .dial(peer.0, peer.1)
-                            .await
-                            .expect("client should not be dropped");
-                        
+                            .await?;
+
                         let mut payload_out = payload.clone();
                         payload_out.payload_header.sender = local_peer_id;
-                        self.client
+                        if let MpcP2pResponse::RawMessage { status } = self.client
                             .send_request(peer.0, MpcP2pRequest::RawMessage { 
                                 payload: encode_payload(&payload_out)
-                            })
-                            .await
-                            .unwrap();
-                            // .expect("node should take in these requests");
+                                })
+                            .await? 
+                        {
+                            status?;
+                        } else {
+                            unreachable!()
+                        }
                     }
                 }
             }
         }
+    
+        Ok(())
     }
 
 }

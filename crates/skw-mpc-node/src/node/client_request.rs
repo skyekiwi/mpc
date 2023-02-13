@@ -1,4 +1,4 @@
-use futures::channel::oneshot;
+use futures::channel::{oneshot, mpsc};
 use libp2p::{PeerId, Multiaddr};
 
 use crate::error::MpcNodeError;
@@ -14,7 +14,8 @@ pub enum ClientRequest {
         listen_addr: String,
         db_name: String,
 
-        result_sender: oneshot::Sender< 
+        // the node might keep emitting errors
+        result_sender: mpsc::Sender< 
             Result<
                 (PeerId, Multiaddr) // node peer_id and listening addr
             , MpcNodeError>
@@ -27,7 +28,7 @@ pub enum ClientRequest {
         key: [u8; 32],
         value: Vec<u8>,
 
-        result_sender: oneshot::Sender<bool>,
+        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
     },
 
     #[cfg(feature = "light-node")]

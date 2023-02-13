@@ -13,7 +13,7 @@ use futures::channel::{oneshot, mpsc};
 #[cfg(feature = "full-node")]
 use skw_mpc_node::node::NodeClient;
 
-use crate::error::MpcClientError;
+use crate::error::{MpcClientError, SwarmError, SwarmP2pError};
 
 use super::{
     behavior::{MpcSwarmBahavior, MpcSwarmBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
@@ -29,7 +29,7 @@ pub struct MpcSwarmEventLoop {
 
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcClientError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcClientError>>>,
-    swarm_termination_receiver: mpsc::Receiver<bool>,
+    swarm_termination_receiver: mpsc::Receiver<()>,
 }
 
 impl MpcSwarmEventLoop {
@@ -40,7 +40,7 @@ impl MpcSwarmEventLoop {
 
         swarm: Swarm<MpcSwarmBahavior>,
         command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
-        swarm_termination_receiver: mpsc::Receiver<bool>,
+        swarm_termination_receiver: mpsc::Receiver<()>,
     ) -> Self {
         Self {
             #[cfg(feature = "full-node")]
@@ -59,16 +59,13 @@ impl MpcSwarmEventLoop {
         loop {
             futures::select! {
                 // events are INCOMING Streams for the node raw events
-                event = self.swarm.next().fuse() => {
-                    self.handle_event(event.expect("always have an event")).await;
+                event = self.swarm.select_next_some().fuse() => {
+                    self.handle_event(event).await;
                 },
 
                 // commands are OUTGOING Sink of events 
                 command = self.command_receiver.select_next_some() => {
-                    match self.handle_command(command).await {
-                        Ok(()) => {},
-                        Err(e) => eprintln!("{:?}", e)
-                    }
+                    self.handle_command(command).await;
                 },
 
                 _ = self.swarm_termination_receiver.select_next_some() => {
@@ -88,7 +85,7 @@ impl MpcSwarmEventLoop {
             // general network
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = self.swarm.local_peer_id().clone();
-                eprintln!(
+                log::info!(
                     "Local node is listening on {:?}",
                     address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
                 );
@@ -98,24 +95,27 @@ impl MpcSwarmEventLoop {
             } => {
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        let _ = sender.send(Ok(()));
+                        let _ = sender
+                            .send(Ok(()))
+                            .expect("dailing result receiver not to be dropped");
                     }
                 }
             }
-            SwarmEvent::ConnectionClosed { .. } => {
-                // println!("{:?} Disconnected", peer_id);
-                // TODO: handle connect close
+            SwarmEvent::ConnectionClosed { peer_id, cause, ..} => {
+                log::info!("{:?} is disconnected because {:?}", peer_id, cause);
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        eprintln!("Dialing Error {:?}", error);
-                        let _ = sender.send(Err(MpcClientError::FailToDial));
+                        log::error!("OutgoingConnectionError Error {:?}", error);
+                        sender
+                            .send(Err(MpcClientError::SwarmError(SwarmError::FailToDailPeer)))
+                            .expect("dailing result receiver not to be dropped");
                     }
                 }
             }
             SwarmEvent::IncomingConnectionError { .. } => {}
-            SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
+            SwarmEvent::Dialing(peer_id) => log::debug!("Dialing {peer_id}"),
 
             // p2p events
             SwarmEvent::Behaviour(MpcSwarmBahaviorEvent::RequestResponse(
@@ -124,24 +124,49 @@ impl MpcSwarmEventLoop {
                 match message {
                     // p2p message request hanlder
                     request_response::Message::Request {
-                        request, channel, ..
+                        request_id,
+                        #[cfg(feature = "full-node")]
+                        request, 
+                        #[cfg(feature = "full-node")]
+                        channel, ..
                     } => {
                         #[cfg(feature = "full-node")]
                         match request {
-                            MpcP2pRequest::Mpc { auth_header, job_header, maybe_local_key } => {
-                                let client_outcome = self.light_node_client.send_request(
+                            MpcP2pRequest::Mpc { auth_header, job_header, maybe_local_key } => {                                
+                                match self.light_node_client.send_request(
                                     job_header, auth_header, maybe_local_key
                                 )
                                     .await
-                                    .unwrap();
+                                {
+                                    Ok(client_outcome) => match self.swarm
+                                        .behaviour_mut()
+                                        .request_response
+                                        .send_response(channel, MpcP2pResponse::Mpc { 
+                                            payload: client_outcome.payload() 
+                                        })
+                                    {
+                                        Ok(_) => {}
+                                        Err(response) => {
+                                            log::debug!("Mpc StartJob Reponse channel closed {:?}", response);
+                                            self
+                                                .pending_request
+                                                .remove(&request_id)
+                                                .expect("client request channel to still be pending.")
+                                                .send(Err(MpcClientError::SwarmP2pError(SwarmP2pError::ResponseChannelClose)))
+                                                .expect("p2p response receiver not to be dropped");
+                                        }
+                                    },
 
-                                self.swarm
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_response(channel, MpcP2pResponse::Mpc { 
-                                        payload: client_outcome.payload() 
-                                    })
-                                    .unwrap();
+                                    Err(e) => {
+                                        self
+                                            .pending_request
+                                            .remove(&request_id)
+                                            .expect("client request channel to still be pending.")
+                                            .send(Err(MpcClientError::MpcNodeError(e.to_string())))
+                                            .expect("p2p response receiver not to be dropped");
+                                    }
+
+                                }  
                             },
                         }
 
@@ -160,19 +185,19 @@ impl MpcSwarmEventLoop {
                     }
                 }
             },
-
             // p2p message misc handler
             SwarmEvent::Behaviour(MpcSwarmBahaviorEvent::RequestResponse(
                 request_response::Event::OutboundFailure {
                     request_id, error, peer,
                 },
             )) => {
-                eprintln!("p2p outbound request failure {:?} {:?}", error, peer);
+                log::error!("p2p outbound request failure to {peer} because {:?}", error);
                 let _ = self
                     .pending_request
                     .remove(&request_id)
                     .expect("Request to still be pending.")
-                    .send(Err(MpcClientError::P2pOutboundFailure));
+                    .send(Err(MpcClientError::SwarmP2pError(SwarmP2pError::OutboundFailure)))
+                    .expect("p2p response receiver not to be dropped");
             }
             SwarmEvent::Behaviour(MpcSwarmBahaviorEvent::RequestResponse(
                 request_response::Event::ResponseSent { .. },
@@ -182,21 +207,19 @@ impl MpcSwarmEventLoop {
         }
     }
 
-    async fn handle_command(&mut self, request: MpcSwarmCommand) -> Result<(), MpcClientError> {
+    async fn handle_command(&mut self, request: MpcSwarmCommand) {
         match request {
             #[cfg(feature = "full-node")]
             MpcSwarmCommand::StartListening { addr, result_sender } => {
-                match self.swarm.listen_on(addr) {
-                    Ok(_) => {
-                        result_sender.send(Ok(()))
-                            .expect("sender should not be dropped");
-                        Ok(())
-                    },
-                    Err(_e )=> {
-                        println!("Failed To Listen {:?}", _e);
-                        result_sender.send(Err(MpcClientError::FailToListenOnPort))
-                    },
-                }.map_err(|_| MpcClientError::FailToSendViaChannel)
+                let res = self.swarm.listen_on(addr)
+                    .map_err(|e| {
+                        log::error!("Listen Error {:?}", e);
+                        MpcClientError::SwarmError(SwarmError::FailToListenToAddress)
+                    })
+                    .map(|_| ());
+                result_sender
+                    .send(res)
+                    .expect("swarm command result receiver not to be dropped");
             },
             MpcSwarmCommand::Dial { peer_id, peer_addr, result_sender } => {
                 if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
@@ -209,17 +232,17 @@ impl MpcSwarmEventLoop {
                         .swarm
                         .dial(peer_addr.with(multiaddr::Protocol::P2p(peer_id.into())))
                     {
-                        Ok(()) => {
-                            e.insert(result_sender);
-                            Ok(())
-                        }
-                        Err(_) => {
-                            result_sender.send(Err(MpcClientError::FailToDial))
-                                .map_err(|_| MpcClientError::FailToSendViaChannel)
+                        Ok(_) => { e.insert(result_sender); },
+                        Err(error) => {
+                            log::error!("Dailing Error {:?}", error);
+                            result_sender.send(Err(MpcClientError::SwarmError(SwarmError::FailToDailPeer)))
+                                .expect("swarm command result receiver not to be dropped");
                         }
                     }
                 } else {
-                    todo!("Already dialing peer.");
+                    result_sender
+                        .send(Err(MpcClientError::SwarmError(SwarmError::AlreadyDailingPeer)))
+                        .expect("swarm command result receiver not to be dropped");
                 }
             },
             MpcSwarmCommand::SendP2pRequest { to, request, result_sender } => {
@@ -228,8 +251,6 @@ impl MpcSwarmEventLoop {
                     .request_response
                     .send_request(&to, request.clone());
                 self.pending_request.insert(request_id, result_sender);
-
-                Ok(())
             }
         }
     }

@@ -39,7 +39,6 @@ skw-crypto-centipede = { path = "../../crypto/skw-crypto-centipede" }
 skw-crypto-zk-paillier = { path = "../../crypto/skw-crypto-zk-paillier" }
 
 thiserror = { version = "1.0.23", default-features = false }
-# derivative = { version = "2", default-features = false }
 sha2 = { version = "0.9", default-features = false}
 
 [dev-dependencies]
