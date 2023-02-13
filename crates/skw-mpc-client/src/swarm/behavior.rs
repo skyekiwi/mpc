@@ -22,8 +22,6 @@ pub mod skw_mpc_p2p_behavior {
     use libp2p::request_response::Codec;
     use skw_mpc_payload::{AuthHeader, PayloadHeader};
 
-    use crate::error::MpcClientError;
-
     #[derive(Debug, Clone)]
     pub struct SkwMpcP2pProtocol();
     #[derive(Clone)]

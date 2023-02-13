@@ -1,7 +1,8 @@
 use libp2p::{PeerId, Multiaddr};
 use futures::{SinkExt};
 use futures::channel::{mpsc, oneshot};
-use skw_mpc_node::error::MpcNodeError;
+
+use crate::error::MpcClientError;
 
 use super::behavior::{MpcP2pRequest, MpcP2pResponse};
 
@@ -11,17 +12,17 @@ pub enum MpcSwarmCommand {
     #[cfg(feature = "full-node")]
     StartListening {
         addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
+        result_sender: oneshot::Sender<Result<(), MpcClientError>>,
     },
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
-        result_sender: oneshot::Sender<Result<(), MpcNodeError>>,
+        result_sender: oneshot::Sender<Result<(), MpcClientError>>,
     },
     SendP2pRequest {
         to: PeerId,
         request: MpcP2pRequest,
-        result_sender: oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>,
+        result_sender: oneshot::Sender<Result<MpcP2pResponse, MpcClientError>>,
     },
 }
 
@@ -35,7 +36,7 @@ impl MpcSwarmClient {
     pub async fn start_listening(
         &mut self,
         addr: Multiaddr,
-    ) -> Result<(), MpcNodeError> {
+    ) -> Result<(), MpcClientError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.command_sender
             .send(MpcSwarmCommand::StartListening { addr, result_sender })
@@ -51,7 +52,7 @@ impl MpcSwarmClient {
         &mut self,
         peer_id: PeerId,
         peer_addr: Multiaddr,
-    ) -> Result<(), MpcNodeError> {
+    ) -> Result<(), MpcClientError> {
         let (result_sender, result_receiver) = oneshot::channel();
         
         self.command_sender
@@ -65,7 +66,7 @@ impl MpcSwarmClient {
         result_receiver.await.expect("Sender not to be dropped.")
     }
 
-    pub async fn send_request(&mut self, to: PeerId, request: MpcP2pRequest) -> Result<MpcP2pResponse,  MpcNodeError> {
+    pub async fn send_request(&mut self, to: PeerId, request: MpcP2pRequest) -> Result<MpcP2pResponse,  MpcClientError> {
         let (result_sender, result_receiver) = oneshot::channel();
         self.command_sender
             .send(MpcSwarmCommand::SendP2pRequest { to, request, result_sender })

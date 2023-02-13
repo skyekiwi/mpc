@@ -12,7 +12,8 @@ use futures::channel::{oneshot, mpsc};
 
 #[cfg(feature = "full-node")]
 use skw_mpc_node::node::NodeClient;
-use skw_mpc_node::{serde_support::decode_key, error::MpcNodeError};
+
+use crate::error::MpcClientError;
 
 use super::{
     behavior::{MpcSwarmBahavior, MpcSwarmBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
@@ -26,8 +27,8 @@ pub struct MpcSwarmEventLoop {
     swarm: Swarm<MpcSwarmBahavior>,
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
 
-    pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
-    pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
+    pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcClientError>>>,
+    pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcClientError>>>,
     swarm_termination_receiver: mpsc::Receiver<bool>,
 }
 
@@ -109,7 +110,7 @@ impl MpcSwarmEventLoop {
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         eprintln!("Dialing Error {:?}", error);
-                        let _ = sender.send(Err(MpcNodeError::FailToDial));
+                        let _ = sender.send(Err(MpcClientError::FailToDial));
                     }
                 }
             }
@@ -171,7 +172,7 @@ impl MpcSwarmEventLoop {
                     .pending_request
                     .remove(&request_id)
                     .expect("Request to still be pending.")
-                    .send(Err(MpcNodeError::P2pOutboundFailure));
+                    .send(Err(MpcClientError::P2pOutboundFailure));
             }
             SwarmEvent::Behaviour(MpcSwarmBahaviorEvent::RequestResponse(
                 request_response::Event::ResponseSent { .. },
@@ -181,7 +182,7 @@ impl MpcSwarmEventLoop {
         }
     }
 
-    async fn handle_command(&mut self, request: MpcSwarmCommand) -> Result<(), MpcNodeError> {
+    async fn handle_command(&mut self, request: MpcSwarmCommand) -> Result<(), MpcClientError> {
         match request {
             #[cfg(feature = "full-node")]
             MpcSwarmCommand::StartListening { addr, result_sender } => {
@@ -193,9 +194,9 @@ impl MpcSwarmEventLoop {
                     },
                     Err(_e )=> {
                         println!("Failed To Listen {:?}", _e);
-                        result_sender.send(Err(MpcNodeError::FailToListenOnPort))
+                        result_sender.send(Err(MpcClientError::FailToListenOnPort))
                     },
-                }.map_err(|_| MpcNodeError::FailToSendViaChannel)
+                }.map_err(|_| MpcClientError::FailToSendViaChannel)
             },
             MpcSwarmCommand::Dial { peer_id, peer_addr, result_sender } => {
                 if let Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
@@ -213,8 +214,8 @@ impl MpcSwarmEventLoop {
                             Ok(())
                         }
                         Err(_) => {
-                            result_sender.send(Err(MpcNodeError::FailToDial))
-                                .map_err(|_| MpcNodeError::FailToSendViaChannel)
+                            result_sender.send(Err(MpcClientError::FailToDial))
+                                .map_err(|_| MpcClientError::FailToSendViaChannel)
                         }
                     }
                 } else {

@@ -9,9 +9,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = "0.2.84"
-skw-mpc-node = {path = "../skw-mpc-node", default-features = false, features = ["light-node", "tcp-ws-transport"]}
+skw-mpc-client = {path = "../skw-mpc-client", default-features = false, features = ["light-node", "wasm-transport"]}
 skw-mpc-payload = { path = "../skw-mpc-payload" }
+
 futures = "0.3.1"
 wasm-bindgen-futures = "0.4.34"
-serde_json = "1.0"
 console_error_panic_hook = "0.1.7"
+
+rand = { version = "0.8" }

@@ -5,11 +5,13 @@ mod event_loop;
 use libp2p::request_response::ProtocolSupport;
 use libp2p::{
     identity, PeerId, Swarm,
-    request_response, Multiaddr,
+    request_response,
     mplex, noise, yamux, core, InboundUpgradeExt, OutboundUpgradeExt, Transport,
 };
 
 use futures::channel::mpsc;
+
+#[cfg(feature = "full-node")]
 use skw_mpc_node::node::NodeClient;
 
 use crate::error::MpcClientError;
@@ -64,7 +66,7 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
 
 #[cfg(feature = "wasm-transport")]
 fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
-    use libp2p::{websocket, tcp};
+    use libp2p::wasm_ext;
     let local_peer_id = PeerId::from(local_key.public());
 
     let transport = {
@@ -83,8 +85,9 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
                 .map_outbound(core::muxing::StreamMuxerBox::new)
         };
 
-        websocket::WsConfig::new(tcp::tokio::Transport::new(tcp::Config::default().nodelay(true)))
-            .upgrade(libp2p::core::upgrade::Version::V1)
+        let transport_base = wasm_ext::ffi::websocket_transport();
+        let transport_base = wasm_ext::ExtTransport::new(transport_base);
+        libp2p::Transport::upgrade(transport_base, libp2p::core::upgrade::Version::V1)
             .authenticate(
                 noise::NoiseAuthenticated::xx(&local_key)
                     .expect("Signing libp2p-noise static DH keypair failed."),
@@ -99,7 +102,7 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
         Default::default(),
     );
     let behaviour = MpcSwarmBahavior {  request_response, };
-    Swarm::with_tokio_executor(transport, behaviour, local_peer_id)
+    Swarm::with_wasm_executor(transport, behaviour, local_peer_id)
 }
 
 pub fn new_swarm_node(
