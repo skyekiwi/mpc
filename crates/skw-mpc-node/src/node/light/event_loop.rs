@@ -119,13 +119,8 @@ pub async fn light_node_event_loop(
                                 let auth_header = request.1;
                                 let maybe_local_key = request.2;
                                 let result_sender = request.3;
-
-                                println!("{:?} Received external job {:?}", local_peer_id, payload_header);
-
                                 job_manager.init_new_job( auth_header, payload_header.clone()).await;
-                                assign_job(
-                                    payload_header, maybe_local_key, result_sender, &mut job_manager
-                                ).await;
+                                assign_job(payload_header, maybe_local_key, result_sender, &mut job_manager).await;
                             },
 
                             payload = keygen_outgoing_receiver.select_next_some() => {
@@ -155,7 +150,7 @@ pub async fn light_node_event_loop(
                     }
                 });
 
-                let local_swarm_info = peer_id_receiver.await.expect("cannot be canceled");
+                let local_swarm_info = peer_id_receiver.await.expect("cannot be canceled");                
                 external_request_channels.insert(local_swarm_info.0, external_request_sender);
                 shutdown_channels.insert(local_swarm_info.0, shutdown_sender);
                 result_sender

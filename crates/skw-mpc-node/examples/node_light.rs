@@ -45,7 +45,6 @@ async fn main() {
 
     let res = client
         .send_request(
-            node1.0,
             keygen_request,
             AuthHeader::default(),
             None,
@@ -72,7 +71,6 @@ async fn main() {
     
         let res = client
             .send_request(
-                node1.0, 
                 sign_request,
                 AuthHeader::default(),
                 Some(local_key)

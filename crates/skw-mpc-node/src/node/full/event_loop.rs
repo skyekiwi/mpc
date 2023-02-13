@@ -135,14 +135,8 @@ pub async fn full_node_event_loop(
                                 // Just in case - we filter out request address to ourselves
                                 // TODO: To be removed in future
                                 if payload_header.sender != local_peer_id {
-                                    println!("{:?} Received job assignment {:?}", local_peer_id, payload_header);
-
                                     let (result_sender, result_receiver) = oneshot::channel();
-                                
-                                    assign_job(
-                                        payload_header, result_sender, &mut storage_in_sender, &mut job_manager
-                                    ).await;
-
+                                    assign_job(payload_header, result_sender, &mut storage_in_sender, &mut job_manager).await;
                                     interal_results.push(result_receiver);
                                 }
                             },
@@ -178,8 +172,7 @@ pub async fn full_node_event_loop(
                                             .await
                                             .expect("DB Write should not fail");
 
-                                        let res = res_receiver.await;
-                                        println!("DB Result {:?}", res);
+                                        let _ = res_receiver.await;
                                     },
                                     ClientOutcome::Sign {
                                         peer_id, payload_id, sig

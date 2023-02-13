@@ -298,8 +298,6 @@ impl<'node> JobManager<'node> {
             // this is a broadcast message
             None => {
                 for peer in payload.clone().payload_header.peers {
-
-                    println!("Outgoing to Peer {:?}", peer);
                     if peer.0.to_string() != self.local_peer_id.to_string() {
                         self.client
                             .dial(peer.0, peer.1)

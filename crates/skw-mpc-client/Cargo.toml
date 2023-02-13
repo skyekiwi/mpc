@@ -1,0 +1,57 @@
+[package]
+name = "skw-mpc-client"
+version = "0.1.7"
+edition = "2021"
+authors = ["Song Zhou <song.zhou@skye.kiwi>"]
+license = "GPL-3.0"
+description = "Mpc pubsub implmenetation"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+futures = "0.3.1"
+async-trait = "0.1.61"
+ed25519-dalek = "1.0.1"
+serde_json = "1.0"
+bincode = "1.3.3"
+rand = "0.8"
+
+skw-crypto-curv = { path = "../../crypto/skw-crypto-curv", default-features = false}
+
+skw-mpc-protocol = { path = "../skw-mpc-protocol" }
+skw-mpc-payload = { path = "../skw-mpc-payload" }
+skw-mpc-node = { path = "../skw-mpc-node", default-features = false, features = ["light-node", "libp2p-tokio-runtime", "tcp-ws-transport"]}
+skw-round-based = { path = "../skw-round-based" }
+
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux"]}
+
+tokio = { version = "1.25", default-features = false, features = ["rt", "macros", "rt-multi-thread"] }
+
+blake2 = { version = "0.10.6", default-features = false }
+serde = { version = "1.0", features = ["derive"], default-features = false }
+wasm-bindgen-futures = { version = "0.4.34", optional = true }
+getrandom = { version = "0.2", default-features = false, optional = true}
+
+[features]
+default = ["full-node", "libp2p-tokio-runtime", "tcp-ws-transport"]
+
+libp2p-tokio-runtime = ["libp2p/tokio"]
+tcp-ws-transport = ["libp2p/tcp", "libp2p/websocket"]
+wasm-transport = ["libp2p/websocket"]
+
+full-node = []
+light-node = []
+
+[[example]]
+name = "node-light"
+path = "examples/node_light.rs"
+required-features = ["light-node", "tcp-ws-transport", "libp2p-tokio-runtime"]
+
+[[example]]
+name = "node-full"
+path = "examples/node_full.rs"
+required-features = ["full-node", "tcp-ws-transport", "libp2p-tokio-runtime"]

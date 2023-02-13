@@ -4136,6 +4136,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "skw-mpc-client"
+version = "0.1.7"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "blake2 0.10.6",
+ "ed25519-dalek",
+ "futures",
+ "getrandom 0.2.8",
+ "libp2p",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "skw-crypto-curv",
+ "skw-mpc-node",
+ "skw-mpc-payload",
+ "skw-mpc-protocol",
+ "skw-round-based",
+ "tokio",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "skw-mpc-node"
 version = "0.1.7"
 dependencies = [

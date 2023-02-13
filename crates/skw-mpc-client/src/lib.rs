@@ -1,8 +1,5 @@
 pub mod error;
 pub mod swarm;
-pub mod node;
-
-pub mod serde_support;
 
 pub fn async_executor<F>(future: F) 
     where F: futures::Future<Output = ()> + 'static + std::marker::Send,

@@ -15,3 +15,11 @@ pub enum ClientOutcome {
         sig: Vec<u8>
     },
 }
+impl ClientOutcome {
+    pub fn payload(&self) -> Vec<u8> {
+        match self {
+            Self::KeyGen {local_key, ..} => local_key,
+            Self::Sign {sig, ..} => sig
+        }.clone()
+    }
+}

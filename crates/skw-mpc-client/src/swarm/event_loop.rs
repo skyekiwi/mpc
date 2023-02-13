@@ -5,66 +5,51 @@ use libp2p::{
     swarm::{SwarmEvent, ConnectionHandlerUpgrErr}, PeerId,
     Swarm,
     multiaddr, 
-    request_response::{self, RequestId,}, Multiaddr, 
+    request_response::{self, RequestId,}, 
 };
-use futures::{StreamExt, FutureExt, SinkExt};
+use futures::{StreamExt, FutureExt};
 use futures::channel::{oneshot, mpsc};
 
 #[cfg(feature = "full-node")]
-use skw_mpc_payload::{PayloadHeader};
+use skw_mpc_node::node::NodeClient;
+use skw_mpc_node::{serde_support::decode_key, error::MpcNodeError};
 
 use super::{
     behavior::{MpcSwarmBahavior, MpcSwarmBahaviorEvent, MpcP2pRequest, MpcP2pResponse}, 
     client::MpcSwarmCommand,
 };
 
-use crate::error::MpcNodeError;
-
 pub struct MpcSwarmEventLoop {
-    swarm: Swarm<MpcSwarmBahavior>,
-
-    swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
-
     #[cfg(feature = "full-node")]
-    swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
+    light_node_client: NodeClient,
 
+    swarm: Swarm<MpcSwarmBahavior>,
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
 
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), MpcNodeError>>>,
     pending_request: HashMap<RequestId, oneshot::Sender<Result<MpcP2pResponse, MpcNodeError>>>,
-    
-    listen_to_addr_sender: mpsc::Sender< Multiaddr >,
     swarm_termination_receiver: mpsc::Receiver<bool>,
 }
 
 impl MpcSwarmEventLoop {
     pub fn new(
-        swarm: Swarm<MpcSwarmBahavior>,
-
-        swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
-
+        // Assume node is bootstrapped and running well
         #[cfg(feature = "full-node")]
-        swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
-    
-        command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
-        
-        listen_to_addr_sender: mpsc::Sender< Multiaddr >,
+        light_node_client: NodeClient,
 
+        swarm: Swarm<MpcSwarmBahavior>,
+        command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
         swarm_termination_receiver: mpsc::Receiver<bool>,
     ) -> Self {
         Self {
-            swarm,
-
-            swarm_incoming_message_sender, 
-            
             #[cfg(feature = "full-node")]
-            swarm_incoming_job_sender,
-            
+            light_node_client,
+
+            swarm,            
             command_receiver, 
 
             pending_dial: Default::default(),
             pending_request: Default::default(),
-            listen_to_addr_sender,
             swarm_termination_receiver,
         }
     }
@@ -102,10 +87,6 @@ impl MpcSwarmEventLoop {
             // general network
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = self.swarm.local_peer_id().clone();
-                self.listen_to_addr_sender
-                    .send(address.clone().with(multiaddr::Protocol::P2p(local_peer_id.into())))
-                    .await
-                    .unwrap();
                 eprintln!(
                     "Local node is listening on {:?}",
                     address.with(multiaddr::Protocol::P2p(local_peer_id.into()))
@@ -138,81 +119,44 @@ impl MpcSwarmEventLoop {
             // p2p events
             SwarmEvent::Behaviour(MpcSwarmBahaviorEvent::RequestResponse(
                 request_response::Event::Message { message, .. },
-            )) => match message {
-                
-                // p2p message request hanlder
-                request_response::Message::Request {
-                    request, channel, ..
-                } => {
-                    match request {
-                        MpcP2pRequest::StartJob { job_header, .. } => {
+            )) => {
+                match message {
+                    // p2p message request hanlder
+                    request_response::Message::Request {
+                        request, channel, ..
+                    } => {
+                        #[cfg(feature = "full-node")]
+                        match request {
+                            MpcP2pRequest::Mpc { auth_header, job_header, maybe_local_key } => {
+                                let client_outcome = self.light_node_client.send_request(
+                                    job_header, auth_header, maybe_local_key
+                                )
+                                    .await
+                                    .unwrap();
 
-                            #[cfg(feature = "full-node")]
-                            {
-                                // if the auth_header is invalid - send error
-                                // if !auth_header.validate() {
-                                if !true {
-                                    self.swarm
-                                        .behaviour_mut()
-                                        .request_response
-                                        .send_response(channel, MpcP2pResponse::StartJob { 
-                                            status: Err(MpcNodeError::P2pBadAuthHeader)
-                                        })
-                                        .unwrap(); // TODO: this unwrap is not correct
-                                } else {
-                                    for (peer, address) in job_header.peers.iter() {
-                                        self.swarm
-                                            .behaviour_mut()
-                                            .request_response
-                                            .add_address(peer, address.clone());
-                                    }
+                                self.swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_response(channel, MpcP2pResponse::Mpc { 
+                                        payload: client_outcome.payload() 
+                                    })
+                                    .unwrap();
+                            },
+                        }
 
-                                    self.swarm
-                                        .behaviour_mut()
-                                        .request_response
-                                        .send_response(channel, MpcP2pResponse::StartJob { 
-                                            status: Ok(())
-                                        })
-                                        .unwrap(); // TODO: this unwrap is not correct
-
-                                    self.swarm_incoming_job_sender
-                                        .try_send(job_header)
-                                        .expect("swarm_incoming_job_sender should not be dropped. qed.");
-                                }
-                            }
-
-                            // NOP for light node - light node client never receive StartJob Request
-                            #[cfg(feature = "light-node")] 
-                            {}
-                        },
-
-                        MpcP2pRequest::RawMessage { payload } => {
-                            self.swarm_incoming_message_sender
-                                .unbounded_send( payload )
-                                .expect("swarm_incoming_message_sender should not be dropped. qed.");
-
-                            self.swarm
-                                .behaviour_mut()
-                                .request_response
-                                .send_response(channel, MpcP2pResponse::RawMessage { 
-                                    status: Ok(())
-                                })
-                                .unwrap(); // TODO: this unwrap is not correct
-                        },
+                        // Light Node never receive requests
+                        #[cfg(feature = "light-node")]
+                        {}
                     }
-                }
 
-                // p2p message response hanlder
-                request_response::Message::Response {
-                    request_id,
-                    response,
-                } => {
-                    // TODO: handle Err from `let Err(e) = response.status`
-                    let _ = self
-                        .pending_request
-                        .remove(&request_id)
-                        .expect("Request to still be pending.")
-                        .send(Ok(response));
+                    // p2p message response hanlder
+                    request_response::Message::Response { request_id, response } => {
+                        let _ = self
+                            .pending_request
+                            .remove(&request_id)
+                            .expect("Request to still be pending.")
+                            .send(Ok(response));
+                    }
                 }
             },
 
@@ -222,7 +166,6 @@ impl MpcSwarmEventLoop {
                     request_id, error, peer,
                 },
             )) => {
-
                 eprintln!("p2p outbound request failure {:?} {:?}", error, peer);
                 let _ = self
                     .pending_request
@@ -240,6 +183,7 @@ impl MpcSwarmEventLoop {
 
     async fn handle_command(&mut self, request: MpcSwarmCommand) -> Result<(), MpcNodeError> {
         match request {
+            #[cfg(feature = "full-node")]
             MpcSwarmCommand::StartListening { addr, result_sender } => {
                 match self.swarm.listen_on(addr) {
                     Ok(_) => {
@@ -248,7 +192,7 @@ impl MpcSwarmEventLoop {
                         Ok(())
                     },
                     Err(_e )=> {
-                        eprintln!("Failed To Listen {:?}", _e);
+                        println!("Failed To Listen {:?}", _e);
                         result_sender.send(Err(MpcNodeError::FailToListenOnPort))
                     },
                 }.map_err(|_| MpcNodeError::FailToSendViaChannel)
