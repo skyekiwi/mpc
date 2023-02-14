@@ -1,5 +1,10 @@
+use std::env;
 use serde::{Serialize, Deserialize};
-use crate::types::{SECRET_LEN, CODE_LEN, SIG_LEN};
+use crate::types::{SECRET_LEN, CODE_LEN};
+use ed25519_dalek::{SIGNATURE_LENGTH};
+
+use ed25519_dalek::{Keypair, PublicKey, SecretKey};
+use ed25519_dalek::{Signature, Signer};
 
 use crate::auth::BaseAuth;
 
@@ -11,6 +16,8 @@ pub struct AuthCode {
 
     pub time: u64,
     pub time_discrepancy: u64,
+
+	pub signature: Vec<u8>,
 }
 
 impl AuthCode {
@@ -20,10 +27,26 @@ impl AuthCode {
         time: u64,
         time_discrepancy: u64,
     ) -> Self {
-        Self {
+		let mut auth_code = Self {
             secret_key: secret.as_bytes().try_into().expect("wrong size"),
-            code, time, time_discrepancy
-        }
+            code, time, time_discrepancy,
+			signature: vec![],
+        };
+
+		let public_key_binding = env::var("SERVER_PUBLIC_KEY").unwrap();
+		let secret_key_binding = env::var("SERVER_SECRET_KEY").unwrap();
+		let public_key_bytes = hex::decode(&public_key_binding).unwrap();
+		let secret_key_bytes = hex::decode(&secret_key_binding).unwrap();
+
+		let public_key: PublicKey = PublicKey::from_bytes(public_key_bytes.as_slice()).unwrap();
+		let secret_key: SecretKey = SecretKey::from_bytes(secret_key_bytes.as_slice()).unwrap();
+		let keypair: Keypair = Keypair { secret: secret_key, public: public_key };
+
+		let auth_code_binding = serde_json::to_vec(&auth_code).unwrap();
+		let auth_code_bytes = auth_code_binding.as_slice();
+		let signature: Signature = keypair.sign(auth_code_bytes);
+		auth_code.signature = Vec::from(signature.to_bytes());
+		return auth_code
     }
 
     pub fn validate(&self) -> bool {

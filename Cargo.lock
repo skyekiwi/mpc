@@ -283,6 +283,7 @@ dependencies = [
  "blocking",
  "futures-lite",
  "once_cell",
+ "tokio",
 ]
 
 [[package]]
@@ -1424,6 +1425,12 @@ dependencies = [
  "quote 1.0.23",
  "syn",
 ]
+
+[[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "dtoa"
@@ -4255,9 +4262,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.92"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7434af0dc1cbd59268aa98b4c22c131c0584d2232f6fb166efb993e2832e896a"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa",
  "ryu",
@@ -4406,7 +4413,9 @@ version = "0.1.0"
 dependencies = [
  "async-std",
  "blake2",
+ "dotenv",
  "futures",
+ "hex",
  "hmac-sha1",
  "http",
  "rand 0.8.5",
@@ -4424,9 +4433,12 @@ version = "0.1.7"
 dependencies = [
  "base32",
  "blake2",
+ "ed25519-dalek",
+ "hex",
  "hmac-sha1",
  "rand 0.8.5",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

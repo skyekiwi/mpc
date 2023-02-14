@@ -1,3 +1,5 @@
+use std::env;
+use dotenv::dotenv;
 use tide::Request;
 use tide::prelude::*;
 use futures::{channel::{oneshot, mpsc::{Sender}}};
@@ -56,6 +58,7 @@ async fn get_email_auth_code(mut req: Request<ServerState>) -> tide::Result {
 	};
 	produce_db_request(storage_in_sender, op).await;
 	let res = o.await;
+	println!("{:?}", res);
     Ok(format!("My email address is {}", email).into())
 }
 
@@ -69,6 +72,7 @@ async fn shutdown_db(mut storage_in_sender: Sender<DBOpIn>) {
 
 #[async_std::main]
 async fn main() {
+	dotenv().ok();
 	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
         format!("email-auth-code-storage"), false
     );
