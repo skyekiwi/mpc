@@ -64,7 +64,7 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
 }
 
 
-#[cfg(feature = "wasm-transport")]
+#[cfg(all(feature = "wasm-transport", target_arch = "wasm32"))]
 fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
     use libp2p::wasm_ext;
     let local_peer_id = PeerId::from(local_key.public());

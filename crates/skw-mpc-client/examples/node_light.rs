@@ -1,10 +1,9 @@
-use core::panic;
+#[cfg(feature = "light-node")]
 
-use futures::channel::mpsc;
 use libp2p::{PeerId, Multiaddr};
 use skw_mpc_client::{
     async_executor,
-    swarm::{new_swarm_node, MpcP2pRequest, MpcP2pResponse}
+    swarm::{new_swarm_node, MpcP2pRequest}
 };
 use skw_mpc_node::serde_support::{decode_signature, decode_key};
 use skw_mpc_payload::{PayloadHeader, header::PayloadType, AuthHeader};

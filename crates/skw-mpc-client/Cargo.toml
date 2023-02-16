@@ -33,8 +33,6 @@ getrandom = { version = "0.2", default-features = false, optional = true}
 
 [features]
 default = ["full-node", "tcp-ws-transport"]
-# default = ["light-node", "wasm-transport"]
-
 wasm-transport = ["wasm-bindgen-futures", "libp2p/wasm-ext", "libp2p/wasm-bindgen", "getrandom/js", "libp2p/wasm-ext-websocket"]
 tcp-ws-transport = ["libp2p/tcp", "libp2p/tokio", "tokio/rt-multi-thread", "libp2p/websocket"]
 
@@ -46,11 +44,11 @@ skw-mpc-node = { path = "../skw-mpc-node", default-features = false }
 
 
 [[example]]
-name = "node-light"
+name = "node-light-client"
 path = "examples/node_light.rs"
 required-features = ["light-node", "tcp-ws-transport"]
 
 [[example]]
-name = "node-full"
+name = "node-full-client"
 path = "examples/node_full.rs"
 required-features = ["full-node", "tcp-ws-transport"]

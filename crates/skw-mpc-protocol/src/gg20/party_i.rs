@@ -69,12 +69,12 @@ pub struct Keys<E: Curve = Secp256k1> {
     pub xhi_inv: BigInt,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PartyPrivate {
-    u_i: Scalar<Secp256k1>,
-    x_i: Scalar<Secp256k1>,
-    dk: DecryptionKey,
-}
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct PartyPrivate {
+//     u_i: Scalar<Secp256k1>,
+//     x_i: Scalar<Secp256k1>,
+//     dk: DecryptionKey,
+// }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
@@ -438,90 +438,90 @@ impl Keys {
     }
 }
 
-impl PartyPrivate {
-    pub fn set_private(key: Keys, shared_key: SharedKeys) -> Self {
-        Self {
-            u_i: key.u_i,
-            x_i: shared_key.x_i,
-            dk: key.dk,
-        }
-    }
+// impl PartyPrivate {
+//     pub fn set_private(key: Keys, shared_key: SharedKeys) -> Self {
+//         Self {
+//             u_i: key.u_i,
+//             x_i: shared_key.x_i,
+//             dk: key.dk,
+//         }
+//     }
 
-    pub fn y_i(&self) -> Point<Secp256k1> {
-        let g = Point::generator();
-        g * &self.u_i
-    }
+//     pub fn y_i(&self) -> Point<Secp256k1> {
+//         let g = Point::generator();
+//         g * &self.u_i
+//     }
 
-    pub fn decrypt(&self, ciphertext: BigInt) -> RawPlaintext {
-        Paillier::decrypt(&self.dk, &RawCiphertext::from(ciphertext))
-    }
+//     pub fn decrypt(&self, ciphertext: BigInt) -> RawPlaintext {
+//         Paillier::decrypt(&self.dk, &RawCiphertext::from(ciphertext))
+//     }
 
-    pub fn refresh_private_key(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
-        let u: Scalar<Secp256k1> = &self.u_i + factor;
-        let y = Point::generator() * &u;
-        let (ek, dk) = Paillier::keypair().keys();
+//     pub fn refresh_private_key(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
+//         let u: Scalar<Secp256k1> = &self.u_i + factor;
+//         let y = Point::generator() * &u;
+//         let (ek, dk) = Paillier::keypair().keys();
 
-        let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
+//         let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
 
-        Keys {
-            u_i: u,
-            y_i: y,
-            dk,
-            ek,
-            party_index: index,
-            N_tilde,
-            h1,
-            h2,
-            xhi,
-            xhi_inv,
-        }
-    }
+//         Keys {
+//             u_i: u,
+//             y_i: y,
+//             dk,
+//             ek,
+//             party_index: index,
+//             N_tilde,
+//             h1,
+//             h2,
+//             xhi,
+//             xhi_inv,
+//         }
+//     }
 
-    // we recommend using safe primes if the code is used in production
-    pub fn refresh_private_key_safe_prime(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
-        let u: Scalar<Secp256k1> = &self.u_i + factor;
-        let y = Point::generator() * &u;
-        let (ek, dk) = Paillier::keypair_safe_primes().keys();
+//     // we recommend using safe primes if the code is used in production
+//     pub fn refresh_private_key_safe_prime(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
+//         let u: Scalar<Secp256k1> = &self.u_i + factor;
+//         let y = Point::generator() * &u;
+//         let (ek, dk) = Paillier::keypair_safe_primes().keys();
 
-        let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
+//         let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
 
-        Keys {
-            u_i: u,
-            y_i: y,
-            dk,
-            ek,
-            party_index: index,
-            N_tilde,
-            h1,
-            h2,
-            xhi,
-            xhi_inv,
-        }
-    }
+//         Keys {
+//             u_i: u,
+//             y_i: y,
+//             dk,
+//             ek,
+//             party_index: index,
+//             N_tilde,
+//             h1,
+//             h2,
+//             xhi,
+//             xhi_inv,
+//         }
+//     }
 
-    // used for verifiable recovery
-    pub fn to_encrypted_segment(
-        &self,
-        segment_size: usize,
-        num_of_segments: usize,
-        pub_ke_y: &Point<Secp256k1>,
-        g: &Point<Secp256k1>,
-    ) -> (Witness, Helgamalsegmented) {
-        Msegmentation::to_encrypted_segments(&self.u_i, &segment_size, num_of_segments, pub_ke_y, g)
-    }
+//     // used for verifiable recovery
+//     pub fn to_encrypted_segment(
+//         &self,
+//         segment_size: usize,
+//         num_of_segments: usize,
+//         pub_ke_y: &Point<Secp256k1>,
+//         g: &Point<Secp256k1>,
+//     ) -> (Witness, Helgamalsegmented) {
+//         Msegmentation::to_encrypted_segments(&self.u_i, &segment_size, num_of_segments, pub_ke_y, g)
+//     }
 
-    pub fn update_private_key(
-        &self,
-        factor_u_i: &Scalar<Secp256k1>,
-        factor_x_i: &Scalar<Secp256k1>,
-    ) -> Self {
-        PartyPrivate {
-            u_i: &self.u_i + factor_u_i,
-            x_i: &self.x_i + factor_x_i,
-            dk: self.dk.clone(),
-        }
-    }
-}
+//     pub fn update_private_key(
+//         &self,
+//         factor_u_i: &Scalar<Secp256k1>,
+//         factor_x_i: &Scalar<Secp256k1>,
+//     ) -> Self {
+//         PartyPrivate {
+//             u_i: &self.u_i + factor_u_i,
+//             x_i: &self.x_i + factor_x_i,
+//             dk: self.dk.clone(),
+//         }
+//     }
+// }
 
 impl SignKeys {
     pub fn g_w_vec(
