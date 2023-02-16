@@ -1,0 +1,71 @@
+[package]
+name = "skw-crypto-curv"
+version = "0.10.0"
+edition = "2021"
+authors = [
+    "Omer Shlomovits",
+    "Denis Varlakov",
+    "Song Zhou <song.zhou@skye.kiwi>",
+]
+license = "MIT"
+description = "Curv contains an extremely simple interface to onboard new elliptic curves. Use this library for general purpose elliptic curve cryptography"
+repository = "https://github.com/ZenGo-X/curv"
+
+[lib]
+name = "skw_crypto_curv"
+crate-type = ["lib"]
+
+[dependencies]
+digest = "0.9"
+generic-array = "0.14"
+typenum = "1.13"
+hex = { version = "0.4", features = ["serde"] }
+hmac = "0.11"
+thiserror = "1"
+lazy_static = "1.4"
+num-traits = "0.2"
+num-integer = "0.1"
+zeroize = "1"
+
+serde = { version = "1.0", features = ["derive"], default-features = false}
+serde_bytes = "0.11"
+
+sha2 = "0.9"
+num-bigint = { version = "0.4", features = ["serde"] }
+
+rand = { version = "0.7" }
+rand_legacy = { package = "rand", version = "0.6" }
+
+secp256k1 = { version = "0.20", features = ["serde", "rand-std", "global-context"], optional = true }
+p256 = { version = "0.11.1", features = ["ecdsa", "ecdsa-core"], optional = true }
+curve25519-dalek = { version = "3", optional = true }
+cryptoxide = { version = "0.1.2", optional = true }
+
+pairing-plus = { version = "0.19", optional = true}
+ff-zeroize = { version = "0.6.3", optional = true }
+old_sha2 = { package = "sha2", version = "0.8", optional = true}
+
+merkle-cbt = { version = "0.3", optional = true }
+
+[dev-dependencies]
+serde_test = "1.0"
+serde_json = "1"
+paste = "1.0.2"
+proptest = "0.10"
+proptest-derive = "0.2"
+blake2 = "0.9"
+sha3 = "0.9"
+
+[features]
+default = ["secp256k1", "secp256r1", "ed25519", "ristretto", "bls12_381", "ecdh", "verifiable_ss", "hash_merkle_tree"]
+
+secp256k1 = ["dep:secp256k1"]
+secp256r1 = ["p256"]
+ed25519 = ["cryptoxide"]
+ristretto = ["curve25519-dalek"]
+
+bls12_381 = ["pairing-plus", "ff-zeroize", "old_sha2"]
+
+hash_merkle_tree = ["merkle-cbt"]
+ecdh = []
+verifiable_ss = []

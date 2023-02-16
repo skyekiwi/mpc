@@ -1,0 +1,54 @@
+[package]
+name = "skw-mpc-client"
+version = "0.1.7"
+edition = "2021"
+authors = ["Song Zhou <song.zhou@skye.kiwi>"]
+license = "GPL-3.0"
+description = "Mpc pubsub implmenetation"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+futures = { version = "0.3.1", default-features = false }
+async-trait = "0.1.61"
+serde_json = "1.0"
+bincode = "1.3.3"
+log = "0.4.17"
+pretty_env_logger = "0.4.0"
+
+thiserror = { version = "1.0.23", default-features = false }
+serde = { version = "1.0", features = ["derive"], default-features = false }
+skw-mpc-payload = { path = "../skw-mpc-payload" }
+skw-mpc-node = { path = "../skw-mpc-node", default-features = false, optional = true }
+
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux"]}
+
+tokio = { version = "1.25", default-features = false, features = ["rt", "macros"] }
+wasm-bindgen-futures = { version = "0.4.34", optional = true }
+getrandom = { version = "0.2", default-features = false, optional = true}
+
+[features]
+default = ["full-node", "tcp-ws-transport"]
+wasm-transport = ["wasm-bindgen-futures", "libp2p/wasm-ext", "libp2p/wasm-bindgen", "getrandom/js", "libp2p/wasm-ext-websocket"]
+tcp-ws-transport = ["libp2p/tcp", "libp2p/tokio", "tokio/rt-multi-thread", "libp2p/websocket"]
+
+full-node = ["skw-mpc-node/light-node", "skw-mpc-node/tcp-ws-transport"]
+light-node = []
+
+[dev-dependencies]
+skw-mpc-node = { path = "../skw-mpc-node", default-features = false }
+
+
+[[example]]
+name = "node-light-client"
+path = "examples/node_light.rs"
+required-features = ["light-node", "tcp-ws-transport"]
+
+[[example]]
+name = "node-full-client"
+path = "examples/node_full.rs"
+required-features = ["full-node", "tcp-ws-transport"]

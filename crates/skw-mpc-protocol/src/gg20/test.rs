@@ -30,15 +30,15 @@ use crate::utilities::{
     zk_pdl_with_slack::PDLwSlackProof
 };
 
-use curv::arithmetic::traits::Converter;
-use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use paillier::*;
+use skw_crypto_curv::arithmetic::traits::Converter;
+use skw_crypto_curv::cryptographic_primitives::hashing::{Digest, DigestExt};
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
+use skw_crypto_curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_paillier::*;
 use sha2::Sha256;
-use zk_paillier::zkproofs::DLogStatement;
+use skw_crypto_zk_paillier::zkproofs::DLogStatement;
 
 #[test]
 fn test_keygen_t1_n2() {

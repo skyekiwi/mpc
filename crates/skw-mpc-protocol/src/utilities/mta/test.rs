@@ -1,6 +1,6 @@
 use crate::utilities::mta::range_proofs::tests::generate_init;
 use crate::utilities::mta::{MessageA, MessageB};
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Scalar};
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Scalar};
 
 #[test]
 fn test_mta() {

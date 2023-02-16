@@ -16,16 +16,16 @@
 */
 use crate::gg20::ErrorType;
 use crate::utilities::mta::{MessageA, MessageB};
-use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
-use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHStatement;
-use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHWitness;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
-use paillier::traits::EncryptWithChosenRandomness;
-use paillier::traits::Open;
-use paillier::DecryptionKey;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawCiphertext, RawPlaintext};
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHStatement;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHWitness;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
+use skw_crypto_paillier::traits::EncryptWithChosenRandomness;
+use skw_crypto_paillier::traits::Open;
+use skw_crypto_paillier::DecryptionKey;
+use skw_crypto_paillier::Paillier;
+use skw_crypto_paillier::{EncryptionKey, Randomness, RawCiphertext, RawPlaintext};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 

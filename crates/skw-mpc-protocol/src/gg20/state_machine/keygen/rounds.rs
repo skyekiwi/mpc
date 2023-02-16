@@ -1,13 +1,13 @@
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
 use sha2::Sha256;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use paillier::EncryptionKey;
-use zk_paillier::zkproofs::DLogStatement;
+use skw_crypto_paillier::EncryptionKey;
+use skw_crypto_zk_paillier::zkproofs::DLogStatement;
 
 use skw_round_based::{
     containers::{
@@ -315,7 +315,7 @@ impl Round4 {
 /// Local secret obtained by party after [keygen](super::Keygen) protocol is completed
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LocalKey<E: Curve> {
-    pub paillier_dk: paillier::DecryptionKey,
+    pub paillier_dk: skw_crypto_paillier::DecryptionKey,
     pub pk_vec: Vec<Point<E>>,
     pub keys_linear: gg20::party_i::SharedKeys,
     pub paillier_key_vec: Vec<EncryptionKey>,

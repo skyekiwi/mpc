@@ -26,3 +26,5 @@ mock/
 test.md
 
 mpc-storage-db-*/
+crates/skw-mpc-wasm/dist/
+crates/skw-mpc-wasm/pkg/

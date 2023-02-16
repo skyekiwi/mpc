@@ -15,14 +15,14 @@
 */
 
 /// MtA is described in https://eprint.iacr.org/2019/114.pdf section 3
-use curv::arithmetic::traits::Samplable;
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
-use paillier::traits::EncryptWithChosenRandomness;
-use paillier::{Add, Decrypt, Mul};
-use paillier::{DecryptionKey, EncryptionKey, Paillier, Randomness, RawCiphertext, RawPlaintext};
-use zk_paillier::zkproofs::DLogStatement;
+use skw_crypto_curv::arithmetic::traits::Samplable;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
+use skw_crypto_paillier::traits::EncryptWithChosenRandomness;
+use skw_crypto_paillier::{Add, Decrypt, Mul};
+use skw_crypto_paillier::{DecryptionKey, EncryptionKey, Paillier, Randomness, RawCiphertext, RawPlaintext};
+use skw_crypto_zk_paillier::zkproofs::DLogStatement;
 
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;

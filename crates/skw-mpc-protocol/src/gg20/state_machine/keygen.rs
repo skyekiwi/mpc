@@ -4,9 +4,9 @@ use std::fmt;
 use std::mem::replace;
 use std::time::Duration;
 
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Scalar};
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Scalar};
 
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;

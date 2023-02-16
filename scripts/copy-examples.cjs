@@ -5,11 +5,7 @@ const execSync = require('./execSync.cjs');
 console.log('$ yarn copy:examples', process.argv.slice(2).join(' '));
 
 function copyExamples() {
-  execSync('rm ./bin/*');
-  execSync('cp ./target/release/examples/gg20_keygen ./bin');
-  execSync('cp ./target/release/examples/gg20_signing ./bin');
-  execSync('cp ./target/release/examples/gg20_sm_client ./bin');
-  execSync('cp ./target/release/examples/gg20_sm_manager ./bin');
+  execSync('PATH="/opt/homebrew/opt/llvm/bin:$PATH" CC=/opt/homebrew/opt/llvm/bin/clang AR=/opt/homebrew/opt/llvm/bin/llvm-ar cd crates/skw-mpc-wasm && yarn && yarn serve');
 }
 
 copyExamples()

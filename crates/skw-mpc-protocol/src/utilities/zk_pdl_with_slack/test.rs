@@ -1,12 +1,12 @@
 #![allow(non_snake_case)]
 use crate::utilities::zk_pdl_with_slack::*;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
-use curv::BigInt;
-use paillier::core::Randomness;
-use paillier::traits::{EncryptWithChosenRandomness, KeyGeneration};
-use paillier::Paillier;
-use paillier::RawPlaintext;
-use zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use skw_crypto_curv::BigInt;
+use skw_crypto_paillier::core::Randomness;
+use skw_crypto_paillier::traits::{EncryptWithChosenRandomness, KeyGeneration};
+use skw_crypto_paillier::Paillier;
+use skw_crypto_paillier::RawPlaintext;
+use skw_crypto_zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
 
 #[test]
 fn test_zk_pdl_with_slack() {

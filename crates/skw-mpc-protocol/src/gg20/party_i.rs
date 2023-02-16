@@ -18,30 +18,30 @@
 
 use std::fmt::Debug;
 
-use centipede::juggling::proof_system::{Helgamalsegmented, Witness};
-use centipede::juggling::segmentation::Msegmentation;
-use curv::arithmetic::traits::*;
-use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
-use curv::cryptographic_primitives::commitments::traits::Commitment;
-use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::*;
-use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
-use curv::BigInt;
+use skw_crypto_centipede::juggling::proof_system::{Helgamalsegmented, Witness};
+use skw_crypto_centipede::juggling::segmentation::Msegmentation;
+use skw_crypto_curv::arithmetic::traits::*;
+use skw_crypto_curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
+use skw_crypto_curv::cryptographic_primitives::commitments::traits::Commitment;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::*;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
+use skw_crypto_curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Curve, Point, Scalar};
+use skw_crypto_curv::BigInt;
 use sha2::Sha256;
 
 use crate::Error::{self, InvalidSig, Phase5BadSum, Phase6Error};
-use paillier::{
+use skw_crypto_paillier::{
     Decrypt, DecryptionKey, EncryptionKey, KeyGeneration, Paillier, RawCiphertext, RawPlaintext,
 };
 
 use serde::{Deserialize, Serialize};
-use zk_paillier::zkproofs::NiCorrectKeyProof;
-use zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
+use skw_crypto_zk_paillier::zkproofs::NiCorrectKeyProof;
+use skw_crypto_zk_paillier::zkproofs::{CompositeDLogProof, DLogStatement};
 
 use crate::gg20::ErrorType;
 use crate::utilities::zk_pdl_with_slack::{PDLwSlackProof, PDLwSlackStatement, PDLwSlackWitness};
-use curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
+use skw_crypto_curv::cryptographic_primitives::proofs::sigma_valid_pedersen::PedersenProof;
 
 use std::convert::TryInto;
 
@@ -69,12 +69,12 @@ pub struct Keys<E: Curve = Secp256k1> {
     pub xhi_inv: BigInt,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PartyPrivate {
-    u_i: Scalar<Secp256k1>,
-    x_i: Scalar<Secp256k1>,
-    dk: DecryptionKey,
-}
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct PartyPrivate {
+//     u_i: Scalar<Secp256k1>,
+//     x_i: Scalar<Secp256k1>,
+//     dk: DecryptionKey,
+// }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
@@ -282,7 +282,7 @@ impl Keys {
                     ) == bc1_vec[i].com
                         && bc1_vec[i]
                             .correct_key_proof
-                            .verify(&bc1_vec[i].e, zk_paillier::zkproofs::SALT_STRING)
+                            .verify(&bc1_vec[i].e, skw_crypto_zk_paillier::zkproofs::SALT_STRING)
                             .is_ok()
                         && bc1_vec[i].e.n.bit_length() >= PAILLIER_MIN_BIT_LENGTH
                         && bc1_vec[i].e.n.bit_length() <= PAILLIER_MAX_BIT_LENGTH
@@ -438,90 +438,90 @@ impl Keys {
     }
 }
 
-impl PartyPrivate {
-    pub fn set_private(key: Keys, shared_key: SharedKeys) -> Self {
-        Self {
-            u_i: key.u_i,
-            x_i: shared_key.x_i,
-            dk: key.dk,
-        }
-    }
+// impl PartyPrivate {
+//     pub fn set_private(key: Keys, shared_key: SharedKeys) -> Self {
+//         Self {
+//             u_i: key.u_i,
+//             x_i: shared_key.x_i,
+//             dk: key.dk,
+//         }
+//     }
 
-    pub fn y_i(&self) -> Point<Secp256k1> {
-        let g = Point::generator();
-        g * &self.u_i
-    }
+//     pub fn y_i(&self) -> Point<Secp256k1> {
+//         let g = Point::generator();
+//         g * &self.u_i
+//     }
 
-    pub fn decrypt(&self, ciphertext: BigInt) -> RawPlaintext {
-        Paillier::decrypt(&self.dk, &RawCiphertext::from(ciphertext))
-    }
+//     pub fn decrypt(&self, ciphertext: BigInt) -> RawPlaintext {
+//         Paillier::decrypt(&self.dk, &RawCiphertext::from(ciphertext))
+//     }
 
-    pub fn refresh_private_key(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
-        let u: Scalar<Secp256k1> = &self.u_i + factor;
-        let y = Point::generator() * &u;
-        let (ek, dk) = Paillier::keypair().keys();
+//     pub fn refresh_private_key(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
+//         let u: Scalar<Secp256k1> = &self.u_i + factor;
+//         let y = Point::generator() * &u;
+//         let (ek, dk) = Paillier::keypair().keys();
 
-        let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
+//         let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
 
-        Keys {
-            u_i: u,
-            y_i: y,
-            dk,
-            ek,
-            party_index: index,
-            N_tilde,
-            h1,
-            h2,
-            xhi,
-            xhi_inv,
-        }
-    }
+//         Keys {
+//             u_i: u,
+//             y_i: y,
+//             dk,
+//             ek,
+//             party_index: index,
+//             N_tilde,
+//             h1,
+//             h2,
+//             xhi,
+//             xhi_inv,
+//         }
+//     }
 
-    // we recommend using safe primes if the code is used in production
-    pub fn refresh_private_key_safe_prime(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
-        let u: Scalar<Secp256k1> = &self.u_i + factor;
-        let y = Point::generator() * &u;
-        let (ek, dk) = Paillier::keypair_safe_primes().keys();
+//     // we recommend using safe primes if the code is used in production
+//     pub fn refresh_private_key_safe_prime(&self, factor: &Scalar<Secp256k1>, index: usize) -> Keys {
+//         let u: Scalar<Secp256k1> = &self.u_i + factor;
+//         let y = Point::generator() * &u;
+//         let (ek, dk) = Paillier::keypair_safe_primes().keys();
 
-        let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
+//         let (N_tilde, h1, h2, xhi, xhi_inv) = generate_h1_h2_N_tilde();
 
-        Keys {
-            u_i: u,
-            y_i: y,
-            dk,
-            ek,
-            party_index: index,
-            N_tilde,
-            h1,
-            h2,
-            xhi,
-            xhi_inv,
-        }
-    }
+//         Keys {
+//             u_i: u,
+//             y_i: y,
+//             dk,
+//             ek,
+//             party_index: index,
+//             N_tilde,
+//             h1,
+//             h2,
+//             xhi,
+//             xhi_inv,
+//         }
+//     }
 
-    // used for verifiable recovery
-    pub fn to_encrypted_segment(
-        &self,
-        segment_size: usize,
-        num_of_segments: usize,
-        pub_ke_y: &Point<Secp256k1>,
-        g: &Point<Secp256k1>,
-    ) -> (Witness, Helgamalsegmented) {
-        Msegmentation::to_encrypted_segments(&self.u_i, &segment_size, num_of_segments, pub_ke_y, g)
-    }
+//     // used for verifiable recovery
+//     pub fn to_encrypted_segment(
+//         &self,
+//         segment_size: usize,
+//         num_of_segments: usize,
+//         pub_ke_y: &Point<Secp256k1>,
+//         g: &Point<Secp256k1>,
+//     ) -> (Witness, Helgamalsegmented) {
+//         Msegmentation::to_encrypted_segments(&self.u_i, &segment_size, num_of_segments, pub_ke_y, g)
+//     }
 
-    pub fn update_private_key(
-        &self,
-        factor_u_i: &Scalar<Secp256k1>,
-        factor_x_i: &Scalar<Secp256k1>,
-    ) -> Self {
-        PartyPrivate {
-            u_i: &self.u_i + factor_u_i,
-            x_i: &self.x_i + factor_x_i,
-            dk: self.dk.clone(),
-        }
-    }
-}
+//     pub fn update_private_key(
+//         &self,
+//         factor_u_i: &Scalar<Secp256k1>,
+//         factor_x_i: &Scalar<Secp256k1>,
+//     ) -> Self {
+//         PartyPrivate {
+//             u_i: &self.u_i + factor_u_i,
+//             x_i: &self.x_i + factor_x_i,
+//             dk: self.dk.clone(),
+//         }
+//     }
+// }
 
 impl SignKeys {
     pub fn g_w_vec(
@@ -841,8 +841,6 @@ impl LocalSignature {
             .fold(Point::generator().to_point(), |acc, x| acc + x);
         let sum = sum_plus_g - &Point::generator().to_point();
 
-
-        println!("Phase 6 Check SiSum {:?} {:?}", sum, pubkey_y);
         match &sum == pubkey_y {
             true => Ok(()),
             false => Err(Phase6Error),
