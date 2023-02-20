@@ -4,8 +4,8 @@ use serde_json::json;
 use skw_mpc_auth::types::CODE_LEN;
 
 pub async fn send_auth_code_to_email(receiver_email: &str, auth_code: &[u8; CODE_LEN]) {
-	let mut sendgrid_api_key = env::var("SENDGRID_API_KEY").unwrap();
-	let mut sender_email = env::var("SENDER_EMAIL").unwrap();
+	let sendgrid_api_key = env::var("SENDGRID_API_KEY").unwrap();
+	let sender_email = env::var("SENDER_EMAIL").unwrap();
 	let sendgrid_body = json!({
 		"personalizations": [
 			{

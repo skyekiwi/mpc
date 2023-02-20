@@ -15,6 +15,8 @@ use blake2::{Blake2bVar, Digest};
 use blake2::digest::{Update, VariableOutput};
 use skw_auth_service::email::send_auth_code_to_email;
 
+use log::{debug, error, log_enabled, info, Level};
+
 #[derive(Debug, Deserialize)]
 struct EmailAuthRequest {
     email: String,
@@ -72,19 +74,35 @@ async fn shutdown_db(mut storage_in_sender: Sender<DBOpIn>) {
 
 #[async_std::main]
 async fn main() {
+
+	// --- Initialize environmental variables and settings ---
 	dotenv().ok();
+	env_logger::init();
+
+
+	// --- Run level DB server ---
 	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
         format!("email-auth-code-storage"), false
     );
 	run_db_server(storage_config);
+	info!("Level DB server started.");
 
+
+	// --- Start web server ---
 	let state = ServerState {
 		storage_in_sender: storage_in_sender.clone()
 	};
-
 	let mut app = tide::with_state(state);
     app.at("/email/auth/code").post(get_email_auth_code);
+
+	info!("Start listening web server...");
     app.listen("127.0.0.1:8080").await;
 
+
+	// --- Gracefully close the web server ---
+	info!("Web server closed.");
+	// Shutdown level db
 	shutdown_db(storage_in_sender.clone()).await;
+	info!("Level DB server closed.");
+
 }
