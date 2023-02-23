@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2.84"
+wasm-bindgen = "=0.2.84"
 skw-mpc-client = {path = "../skw-mpc-client", default-features = false, features = ["light-node", "wasm-transport"]}
 skw-mpc-payload = { path = "../skw-mpc-payload" }
 

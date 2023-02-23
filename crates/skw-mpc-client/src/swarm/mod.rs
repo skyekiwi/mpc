@@ -14,8 +14,6 @@ use futures::channel::mpsc;
 #[cfg(feature = "full-node")]
 use skw_mpc_node::node::NodeClient;
 
-use crate::error::MpcClientError;
-
 use self::behavior::{MpcSwarmBahavior, SkwMpcP2pCodec, SkwMpcP2pProtocol};
 
 // re-export
