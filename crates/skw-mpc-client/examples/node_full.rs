@@ -18,7 +18,7 @@ async fn main() {
     let mut light_client_node = light_node_client
         .bootstrap_node(
             Some([3u8; 32]), 
-            "/ip4/10.0.0.3/tcp/2619/ws".to_string(),
+            "/ip4/100.104.199.31/tcp/2619/ws".to_string(),
             "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
         ).await;
     async_executor(async move {
@@ -40,7 +40,7 @@ async fn main() {
     async_executor(event_loop.run());
 
     client
-        .start_listening("/ip4/10.0.0.3/tcp/2622/ws".parse().expect("multiaddr should be valid"))
+        .start_listening("/ip4/100.104.199.31/tcp/2622/ws".parse().expect("multiaddr should be valid"))
         .await
         .unwrap();
 
