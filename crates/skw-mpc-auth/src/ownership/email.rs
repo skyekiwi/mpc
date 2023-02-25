@@ -37,7 +37,7 @@ impl ProofOfOwnership for EmailProofOfOwnership {
     type Proof = GAProofSystem;
     type OwnershipProof = Ed25519SelfProveableSystem;
 
-    fn generate_auth(config: &Self::Config, credential: &Self::Credential) -> Result< 
+    fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
         (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
         OwnershipProofError<Self::Proof, Self::OwnershipProof>
     > {
@@ -84,7 +84,7 @@ impl ProofOfOwnership for EmailProofOfOwnership {
 #[test]
 fn smoke_test() {
     let default_config = EmailProofOfOwnershipConfig::default();
-    let (verifier, credential_hash) = EmailProofOfOwnership::generate_auth(
+    let (verifier, credential_hash) = EmailProofOfOwnership::generate_challenge(
         &default_config, 
         &"test@skye.kiwi".to_string()
     ).unwrap();

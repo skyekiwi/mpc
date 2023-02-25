@@ -37,7 +37,7 @@ impl ProofOfOwnership for GATokenProofOfOwnership {
     type Proof = GAProofSystem;
     type OwnershipProof = Ed25519SelfProveableSystem;
 
-    fn generate_auth(config: &Self::Config, credential: &Self::Credential) -> Result< 
+    fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
         (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
         OwnershipProofError<Self::Proof, Self::OwnershipProof>
     > { 
@@ -75,7 +75,7 @@ impl ProofOfOwnership for GATokenProofOfOwnership {
 #[test]
 fn smoke_test() {
     let default_config = GATokenProofOfOwnershipConfig::default();
-    let (verifier, credential_hash) = GATokenProofOfOwnership::generate_auth(
+    let (verifier, credential_hash) = GATokenProofOfOwnership::generate_challenge(
         &default_config, 
         &[1u8; 32]
     ).unwrap();

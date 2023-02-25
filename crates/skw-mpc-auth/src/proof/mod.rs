@@ -17,6 +17,7 @@ pub trait ProofSystem {
 }
 
 pub trait SelfProveableSystem {
+    /// ProverConfig & VerifierConfig are considered hardcoded on the node
     type ProverConfig;
     type VerifierConfig;
 

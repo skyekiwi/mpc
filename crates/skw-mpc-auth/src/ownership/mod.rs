@@ -27,7 +27,7 @@ pub trait ProofOfOwnership {
     type Proof: ProofSystem;
     type OwnershipProof: SelfProveableSystem;
 
-    fn generate_auth(config: &Self::Config, credential: &Self::Credential) -> Result< 
+    fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
         (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
         OwnershipProofError<Self::Proof, Self::OwnershipProof>
     >

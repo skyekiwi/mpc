@@ -84,7 +84,7 @@ mod test {
     #[test]
     fn smoke_test() {
         let default_config = GATokenProofOfOwnershipConfig::default();
-        let (verifier, credential_hash) = GATokenProofOfOwnership::generate_auth(
+        let (verifier, credential_hash) = GATokenProofOfOwnership::generate_challenge(
             &default_config, 
             &[1u8; 32]
         ).unwrap();
