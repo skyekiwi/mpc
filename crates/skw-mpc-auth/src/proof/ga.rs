@@ -66,9 +66,11 @@ impl ProofSystem for GAProofSystem {
     type Verifier = GAVerfier;
     type RandomMaterial = GARandomMaterial;
     type Config = GAConfig;
+    type Output = ();
+
     type Err = GAError;
 
-    fn generate_verifier(random_material: Self::RandomMaterial, config: Self::Config) -> Result<GAVerfier, GAError> {
+    fn generate_verifier(random_material: Self::RandomMaterial, config: Self::Config) -> Result<Self::Verifier, Self::Err> {
         let encoded = base32::encode(base32::Alphabet::RFC4648 { padding: true }, &random_material[..]);
         let t = get_time(0);
         Ok(GAVerfier::from_str(&encoded, t, config.time_discrepancy)?)
@@ -105,7 +107,7 @@ impl ProofSystem for GAProofSystem {
         }
     }
 
-    fn verify_proof(proof: &Self::Proof, verifier: &Self::Verifier) -> Result<(), Self::Err> {
+    fn verify_proof(proof: &Self::Proof, verifier: &Self::Verifier) -> Result<Self::Output, Self::Err> {
         let current_time = get_time(0);
 
         let lower_bound = current_time.saturating_sub(verifier.time_discrepancy);

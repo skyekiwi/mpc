@@ -62,7 +62,7 @@ impl ProofOfOwnership for EmailProofOfOwnership {
 
     fn issue_proof(
         config: &Self::Config, 
-        credential_hash: [u8; 32],
+        credential_hash: CryptoHash,
         proof: &<Self::Proof as ProofSystem>::Proof, 
         verifier: &<Self::Proof as ProofSystem>::Verifier
     ) -> Result<

@@ -56,7 +56,8 @@ impl UsageCertification for MpcUsageCertification {
         let linkage_hash = linkage_hasher.finalize();
 
         if &Into::<[u8; 32]>::into(linkage_hash) == usage_certification.payload() {
-            Self::Certification::verify_proof(usage_verification_config, usage_certification)
+            Self::Certification::verify_proof(usage_verification_config, usage_certification)?;
+            Ok(())
         } else {
             Err(Ed25519Error::ValidationFailed)
         }
@@ -76,13 +77,13 @@ mod test {
         
         Ed25519SelfProveableSystem,
         
-        UsageCertification,
+        UsageCertification, ownership::oauth::{OAuthTokenProofOfOwnershipConfig, OAuthTokenProofOfOwnership, OAuthCredential},
     };
 
     use super::MpcUsageCertification;
 
     #[test]
-    fn smoke_test() {
+    fn ga_smoke_test() {
         let default_config = GATokenProofOfOwnershipConfig::default();
         let (verifier, credential_hash) = GATokenProofOfOwnership::generate_challenge(
             &default_config, 
@@ -102,6 +103,49 @@ mod test {
             &default_config.into(),
         ).unwrap();
 
+
+        let usage_proof_config = [3u8; 32].into();
+        let p = MpcUsageCertification::issue_usage_certification(
+            &[10u8; 32],
+            &verifier_config,
+            &usage_proof_config,
+            &proof_of_ownership
+        ).unwrap();
+
+        let usage_verif_config = Ed25519SelfProveableSystem::derive_verifier_config(&usage_proof_config).unwrap();
+        MpcUsageCertification::verify_usage_certification(
+            &[10u8; 32],
+            &credential_hash,
+            &usage_verif_config,
+            &p
+        ).unwrap();
+
+        println!("Proof {:?}", p);
+    }
+
+    #[test]
+    fn oauth_smoke_test() {
+        let config = OAuthTokenProofOfOwnershipConfig::new(
+            "chokowallet".to_string(), 
+            [0u8; 32]
+        );
+        let (verifier, credential_hash) = OAuthTokenProofOfOwnership::generate_challenge(
+            &config,
+            &OAuthCredential::new("google".to_string(), "hello@skye.kiwi".to_string())
+        ).unwrap();
+
+        let proof = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.._SGRCB7xJDGjt2Og.fnk4QWVusvnMAdaRwvcEtKul9ZWFa994mjMh8D8nEoeG3D8l8Y2TlC0U8hTj-N0YkljTKOg7p0r6v2tk2KYUPCIEGwEarpC_UlADmwTtAJubpCRiQwUnpUYdQ0tRpYFV_bNGDkr-OkUfIe-8iagTTnmoIwBE6ZWTV-ZcF4qxgOWAr45jwFIQS3yNwpF0MLWR3lnzjAOcfya_5ZfOxNVqMEc_wp_4Fmn2myU8878Hhld-u5Zcz5TXfYeQcQYryFcJAfCulKrUXrb-GsGFyYzw0ZbpLMD3NJ4gx0wA6UOUaFJC9mAKipxHf7GNF9WEiMhmD1FC17SEmME-V1-wDaC9z3lwI53p334NLHss0BJGdtWAqCgx-14.FY4Isf4EnB5NpMXRuni-OA".to_string();
+
+        let proof_of_ownership = OAuthTokenProofOfOwnership::issue_proof(
+            &config, 
+            credential_hash, 
+            &proof, 
+            &verifier
+        ).unwrap();
+
+        let verifier_config = Ed25519SelfProveableSystem::derive_verifier_config(
+            &config.into(),
+        ).unwrap();
 
         let usage_proof_config = [3u8; 32].into();
         let p = MpcUsageCertification::issue_usage_certification(

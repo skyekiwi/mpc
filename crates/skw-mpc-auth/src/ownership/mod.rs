@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     proof::{ProofSystem, SelfProveableSystem}, 
@@ -9,6 +9,7 @@ use crate::{
 
 pub mod email;
 pub mod ga_token;
+pub mod oauth;
 
 #[derive(Debug)]
 pub enum OwnershipProofError<PE, SPE> 
@@ -17,7 +18,8 @@ pub enum OwnershipProofError<PE, SPE>
         SPE: SelfProveableSystem,
 {
     ValidationError(PE::Err),
-    ProofIssuanceError(SPE::Err)
+    ProofIssuanceError(SPE::Err),
+    CredentialMismatch,
 }
 
 pub trait ProofOfOwnership {

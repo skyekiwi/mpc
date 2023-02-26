@@ -54,6 +54,7 @@ impl SelfProveableSystem for Ed25519SelfProveableSystem {
     
     type Payload = [u8; 32];
     type Proof = Ed25519Proof;
+    type Output = [u8; 32];
     
     type Err = Ed25519Error;
 
@@ -75,13 +76,15 @@ impl SelfProveableSystem for Ed25519SelfProveableSystem {
         Ok(public_key.to_bytes().into())
     }
 
-    fn verify_proof(config: &Self::VerifierConfig, proof: &Self::Proof) -> Result<(), Self::Err> {
+    fn verify_proof(config: &Self::VerifierConfig, proof: &Self::Proof) -> Result<Self::Output, Self::Err> {
         let public_key = PublicKey::from_bytes(&config.public_key)
             .map_err(|_| Ed25519Error::PublicKeyError)?;
         public_key.verify_strict(
             &proof.payload[..], 
             &proof.signature[..].try_into().map_err(|_| Ed25519Error::FailedToParseSignature)?
-        ).map_err(|_| Ed25519Error::ValidationFailed)
+        ).map_err(|_| Ed25519Error::ValidationFailed)?;
+
+        Ok(proof.payload)
     }
 }
 
