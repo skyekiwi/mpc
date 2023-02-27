@@ -1,8 +1,6 @@
 use skw_mpc_auth::ownership::oauth::OAuthCredential;
-use skw_mpc_auth::types::Timestamp;
 use skw_mpc_auth::{
-    GATokenProofOfOwnership, GATokenProofOfOwnershipConfig,
-    ProofOfOwnership, GAProof, OAuthTokenProofOfOwnershipConfig, OAuthTokenProofOfOwnership,
+    ProofOfOwnership, OAuthTokenProofOfOwnershipConfig, OAuthTokenProofOfOwnership,
 };
 
 use tide::Request;
@@ -11,7 +9,7 @@ use serde::Deserialize;
 
 use crate::ServerState;
 
-// Route /ga/validate
+// Route /oauth/validate
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OAuthAuthValidateRequest {
     provider: String,
@@ -21,7 +19,7 @@ struct OAuthAuthValidateRequest {
 }
 type OAuthAuthValidateResponse = String; // serialized OwnershipProof
 
-async fn oauth_auth_validate(mut req: Request<ServerState>) -> tide::Result<OAuthAuthValidateResponse> {
+pub async fn oauth_auth_validate(mut req: Request<ServerState>) -> tide::Result<OAuthAuthValidateResponse> {
     let OAuthAuthValidateRequest { provider, email, token } = req.body_json().await?;
 
     let credential = OAuthCredential::new(provider, email);

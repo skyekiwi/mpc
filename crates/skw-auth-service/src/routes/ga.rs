@@ -16,7 +16,7 @@ struct GAAuthInitRequest ();
 
 type GAAuthInitResponse = String;
 
-async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitResponse> {
+pub async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitResponse> {
     // let EmailAuthInitRequest { email } = req.body_json().await?;
     let mut server_state = req.state().clone(); // Cost of clone is pretty low here ... but there might be a better way
 
@@ -51,7 +51,7 @@ struct GAAuthValidateRequest {
 }
 type GAAuthValidateResponse = String; // serialized OwnershipProof
 
-async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAAuthValidateResponse> {
+pub async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAAuthValidateResponse> {
     let GAAuthValidateRequest { ga_hash, code, time } = req.body_json().await?;
     let ga_hash: [u8; 32] = hex::decode(&ga_hash)
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?
@@ -69,7 +69,7 @@ async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAAuthV
         .await
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
     let verifier = serde_json::from_slice(&verifier_bytes)
-        .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;;
+        .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
 
     // TODO: replace with real secret key
     let config = GATokenProofOfOwnershipConfig::new(30, [0u8; 32]); // default GA timeout is 30 seconds

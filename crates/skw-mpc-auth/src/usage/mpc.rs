@@ -59,7 +59,7 @@ impl UsageCertification for MpcUsageCertification {
             Self::Certification::verify_proof(usage_verification_config, usage_certification)?;
             Ok(())
         } else {
-            Err(Ed25519Error::ValidationFailed)
+            Err(Self::Err::ValidationFailed)
         }
     }
 }

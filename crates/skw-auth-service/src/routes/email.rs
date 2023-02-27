@@ -19,9 +19,9 @@ struct EmailAuthInitRequest {
     email: String,
 }
 
-type EmailAuthInitResponse = ();
+type EmailAuthInitResponse = String; // Dummy "ok"
 
-async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<EmailAuthInitResponse> {
+pub async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<EmailAuthInitResponse> {
     let EmailAuthInitRequest { email } = req.body_json().await?;
     let mut server_state = req.state().clone(); // Cost of clone is pretty low here ... but there might be a better way
 
@@ -46,7 +46,7 @@ async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<EmailAut
 
     send_auth_code_to_email(&email, &proof.code()).await;
 
-    Ok(())
+    Ok("ok".to_string())
 }
 
 // Route /email/validate
@@ -57,7 +57,7 @@ struct EmailAuthValidateRequest {
 }
 type EmailAuthValidateResponse = String; // serialized OwnershipProof
 
-async fn email_auth_validate(mut req: Request<ServerState>) -> tide::Result<EmailAuthValidateResponse> {
+pub async fn email_auth_validate(mut req: Request<ServerState>) -> tide::Result<EmailAuthValidateResponse> {
     let EmailAuthValidateRequest { email_hash, code } = req.body_json().await?;
     let email_hash: [u8; 32] = hex::decode(&email_hash)
         .map_err(|e| tide::Error::from_str(500, format!("EmailAuthValidate Error {:?}", e)) )?
@@ -75,7 +75,7 @@ async fn email_auth_validate(mut req: Request<ServerState>) -> tide::Result<Emai
         .await
         .map_err(|e| tide::Error::from_str(500, format!("EmailAuthValidate Error {:?}", e)) )?;
     let verifier = serde_json::from_slice(&verifier_bytes)
-        .map_err(|e| tide::Error::from_str(500, format!("EmailAuthValidate Error {:?}", e)) )?;;
+        .map_err(|e| tide::Error::from_str(500, format!("EmailAuthValidate Error {:?}", e)) )?;
 
     // TODO: replace with real secret key
     let config = EmailProofOfOwnershipConfig::new(600, [0u8; 32]);
