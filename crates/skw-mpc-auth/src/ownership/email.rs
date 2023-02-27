@@ -15,6 +15,13 @@ pub struct EmailProofOfOwnershipConfig {
     signature_secret_key: [u8; 32],
 }
 
+impl EmailProofOfOwnershipConfig {
+    pub fn new(code_expiration_time: Timestamp,
+        signature_secret_key: [u8; 32]) -> Self {
+        Self { code_expiration_time, signature_secret_key }
+    }
+}
+
 impl Default for EmailProofOfOwnershipConfig {
     fn default() -> Self {
         Self { 

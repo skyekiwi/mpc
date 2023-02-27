@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake2::{Blake2bVar, Digest};
 use blake2::digest::{Update, VariableOutput};
-use skw_auth_service::email::send_auth_code_to_email;
+use skw_auth_service::util::send_auth_code_to_email;
 
 use log::{debug, error, log_enabled, info, Level};
 
