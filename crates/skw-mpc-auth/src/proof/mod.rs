@@ -10,13 +10,14 @@ pub trait ProofSystem {
     type Verifier;
     type RandomMaterial;
     type Config;
+    type Salt;
 
     type Output;
 
     type Err: Debug;
 
     fn generate_verifier(random_material: Self::RandomMaterial, config: Self::Config) -> Result<Self::Verifier, Self::Err>;
-    fn generate_proof(verifier: &Self::Verifier) -> Result<Self::Proof, Self::Err>;
+    fn generate_proof(verifier: &Self::Verifier, salt: &Self::Salt) -> Result<Self::Proof, Self::Err>;
     fn verify_proof(proof: &Self::Proof, verifier: &Self::Verifier) -> Result<Self::Output, Self::Err>;
 }
 

@@ -90,7 +90,7 @@ mod test {
             &[1u8; 32]
         ).unwrap();
 
-        let proof = GAProofSystem::generate_proof(&verifier).unwrap();
+        let proof = GAProofSystem::generate_proof(&verifier, &0).unwrap();
 
         let proof_of_ownership = GATokenProofOfOwnership::issue_proof(
             &default_config, 

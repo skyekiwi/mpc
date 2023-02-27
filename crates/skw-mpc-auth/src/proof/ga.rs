@@ -32,8 +32,18 @@ impl Default for GAConfig {
         }
     }
 }
-
-pub type GAProof = [u8; CODE_LEN];
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GAProof {
+    code: [u8; CODE_LEN],
+    time: Timestamp,
+}
+impl GAProof {
+    pub fn new(code: [u8; CODE_LEN], time: Timestamp) -> Self {Self {code, time}}
+    pub fn code(&self) -> [u8; CODE_LEN] { self.code }
+    pub fn validate(&self, code: [u8; CODE_LEN]) -> bool {
+        self.code == code
+    }
+}
 pub type GARandomMaterial = [u8; SECRET_LEN];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +76,7 @@ impl ProofSystem for GAProofSystem {
     type Verifier = GAVerfier;
     type RandomMaterial = GARandomMaterial;
     type Config = GAConfig;
+    type Salt = Timestamp;
     type Output = ();
 
     type Err = GAError;
@@ -76,8 +87,8 @@ impl ProofSystem for GAProofSystem {
         Ok(GAVerfier::from_str(&encoded, t, config.time_discrepancy)?)
     }
 
-    fn generate_proof(verifier: &Self::Verifier) -> Result<Self::Proof, Self::Err> {
-        let t = get_time(verifier.time);
+    fn generate_proof(verifier: &Self::Verifier, salt: &Self::Salt) -> Result<Self::Proof, Self::Err> {
+        let t = get_time(salt.clone());
         match base32::decode(base32::Alphabet::RFC4648 { padding: true }, &verifier.try_to_string()?) {
             Some(secret_key) => {
                 let hash = hmac_sha1(&secret_key, &t.to_be_bytes());
@@ -91,7 +102,7 @@ impl ProofSystem for GAProofSystem {
                     u32::try_from(CODE_LEN).expect("code is small enough to fit u32. qed.")
                 ).expect("code length overflow");
 
-                // NOTE: sCODE_LEN is hardcoded here
+                // NOTE: CODE_LEN is hardcoded here
                 let res: Vec<u8> = format!("{:0>6}", code)
                     .to_string()
                     .chars()
@@ -100,8 +111,12 @@ impl ProofSystem for GAProofSystem {
                         ).expect("all digits should be within u8 size")
                     )
                     .collect();
-                
-                Ok(res.try_into().expect("output code should always be 6 digits long"))
+                Ok(
+                    GAProof::new(
+                        res.try_into().expect("output code should always be 6 digits long"),
+                        t,
+                    )
+                )
             },
             _ => Err(GAError::BadBase32Encoding),
         }
@@ -113,9 +128,9 @@ impl ProofSystem for GAProofSystem {
         let lower_bound = current_time.saturating_sub(verifier.time_discrepancy);
         let upper_bound = current_time.saturating_add(verifier.time_discrepancy);
 
-        for _time in lower_bound..upper_bound {
-            if let Ok(c) = Self::generate_proof(verifier) {
-                if c == *proof {
+        for time in lower_bound..upper_bound {
+            if let Ok(c) = Self::generate_proof(verifier, &time) {
+                if proof.validate(c.code()) {
                     return Ok(())
                 }
             }
@@ -131,7 +146,7 @@ fn smoke_test() {
 
     let random: GARandomMaterial = [1u8; 32];
     let verifier = GAProofSystem::generate_verifier(random, GAConfig::default()).unwrap();
-    let proof = GAProofSystem::generate_proof(&verifier).unwrap();
+    let proof = GAProofSystem::generate_proof(&verifier, &0).unwrap();
 
     GAProofSystem::verify_proof(&proof, &verifier).unwrap();
 

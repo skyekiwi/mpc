@@ -41,6 +41,7 @@ impl ProofSystem for JweProofSystem {
     type Verifier = [u8; 32];
     type RandomMaterial = ();
     type Config = JweConfig;
+    type Salt = ();
 
     type Output = [u8; 32];
 
@@ -55,7 +56,7 @@ impl ProofSystem for JweProofSystem {
     }
 
     /// JWE token will always be generated on the client side 
-    fn generate_proof(_verifier: &Self::Verifier) -> Result<Self::Proof, Self::Err> { unreachable!() }
+    fn generate_proof(_verifier: &Self::Verifier, _salt: &Self::Salt) -> Result<Self::Proof, Self::Err> { unreachable!() }
 
     fn verify_proof(proof: &Self::Proof, verifier: &Self::Verifier) -> Result<Self::Output, Self::Err> {
         let decrypter = Dir.decrypter_from_bytes(&verifier).expect("cannot fail");

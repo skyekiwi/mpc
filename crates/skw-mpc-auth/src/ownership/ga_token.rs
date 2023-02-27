@@ -15,6 +15,13 @@ pub struct GATokenProofOfOwnershipConfig {
     signature_secret_key: [u8; 32],
 }
 
+impl GATokenProofOfOwnershipConfig {
+    pub fn new(code_expiration_time: Timestamp,
+        signature_secret_key: [u8; 32]) -> Self {
+        Self { code_expiration_time, signature_secret_key }
+    }
+}
+
 impl Default for GATokenProofOfOwnershipConfig {
     fn default() -> Self {
         Self { 
@@ -80,7 +87,7 @@ fn smoke_test() {
         &[1u8; 32]
     ).unwrap();
 
-    let proof = GAProofSystem::generate_proof(&verifier).unwrap();
+    let proof = GAProofSystem::generate_proof(&verifier, &0).unwrap();
 
     let certification = GATokenProofOfOwnership::issue_proof(
         &default_config, 

@@ -96,7 +96,7 @@ fn smoke_test() {
         &"test@skye.kiwi".to_string()
     ).unwrap();
 
-    let proof = GAProofSystem::generate_proof(&verifier).unwrap();
+    let proof = GAProofSystem::generate_proof(&verifier, &0).unwrap();
 
     let certification = EmailProofOfOwnership::issue_proof(
         &default_config, 

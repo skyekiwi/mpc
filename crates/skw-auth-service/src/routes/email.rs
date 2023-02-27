@@ -1,3 +1,4 @@
+use skw_mpc_auth::GAProof;
 use skw_mpc_auth::{
     GAProofSystem,
     EmailProofOfOwnership, EmailProofOfOwnershipConfig,
@@ -27,6 +28,7 @@ async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<EmailAut
     
     // 1. Generate & store a verifier
     // TODO: replace with real secret key
+    // Default email auth timeout is 10mins
     let config = EmailProofOfOwnershipConfig::new(600, [0u8; 32]);
     let (verifier, credential_hash) = EmailProofOfOwnership::generate_challenge(&config, &email)
         .map_err(|e| tide::Error::from_str(500, format!("EmailProofOfOwnership Error {:?}", e)) )?;
@@ -39,10 +41,10 @@ async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<EmailAut
         .map_err(|e| tide::Error::from_str(500, format!("EMailProofOfOwnership Error {:?}", e)) )?;
 
     // 2. generate a proof & send via email to user
-    let proof = GAProofSystem::generate_proof(&verifier)
+    let proof = GAProofSystem::generate_proof(&verifier, &0)
         .map_err(|e| tide::Error::from_str(500, format!("EMailProofOfOwnership Error {:?}", e)) )?;
 
-    send_auth_code_to_email(&email, &proof).await;
+    send_auth_code_to_email(&email, &proof.code()).await;
 
     Ok(())
 }
@@ -81,7 +83,7 @@ async fn email_auth_validate(mut req: Request<ServerState>) -> tide::Result<Emai
     let certificate = EmailProofOfOwnership::issue_proof(
         &config, 
         email_hash, 
-        &code, 
+        &GAProof::new(code, 0),
         &verifier
     )
         .map_err(|e| tide::Error::from_str(500, format!("EmailAuthValidate Error {:?}", e)) )?;
