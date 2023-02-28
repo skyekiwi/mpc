@@ -6,6 +6,7 @@ use skw_auth_service::{
 	routes::usage::{usage_link, usage_validate}, shutdown_db
 };
 use skw_mpc_storage::db::{run_db_server, default_mpc_storage_opt};
+use tide::{utils::{After}, Response, StatusCode};
 
 #[async_std::main]
 async fn main() {
@@ -13,7 +14,6 @@ async fn main() {
 	// --- Initialize environmental variables and settings ---
 	dotenv::dotenv().ok();
 	env_logger::init();
-
 
 	// --- Run level DB server ---
 	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
@@ -27,6 +27,16 @@ async fn main() {
 	let state = ServerState::new(&storage_in_sender);
 	let mut app = tide::with_state(state);
 
+	app.with(After(|mut res: Response | async {
+		if let Some(err) = res.error() {
+			let msg = format!("Error: {:?}", err);
+			res.set_status(StatusCode::InternalServerError);
+			res.set_body(msg);
+		}
+
+		Ok(res)
+	}));
+
     app.at("/auth/email/init").post(email_auth_init);
 	app.at("/auth/email/validate").post(email_auth_validate);
 
@@ -39,7 +49,7 @@ async fn main() {
 	app.at("/usage/validate").post(usage_validate);
 
 	log::info!("Start listening web server...");
-    let _ = app.listen("127.0.0.1:8080").await;
+    let _ = app.listen("0.0.0.0:8080").await;
 
 
 	// --- Gracefully close the web server ---

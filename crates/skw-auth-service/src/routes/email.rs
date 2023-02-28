@@ -46,7 +46,8 @@ pub async fn email_auth_init(mut req: Request<ServerState>) -> tide::Result<Emai
 
     send_auth_code_to_email(&email, &proof.code()).await;
 
-    Ok("ok".to_string())
+    // Ok("ok".to_string())
+    Ok(serde_json::to_string(&proof).unwrap())
 }
 
 // Route /email/validate
