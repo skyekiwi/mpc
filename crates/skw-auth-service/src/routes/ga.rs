@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::ServerState;
 
-// Route: /ga/init 
+// Route: /ga/init
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct GAAuthInitRequest ();
 
@@ -29,9 +29,10 @@ pub async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitR
     let (verifier, credential_hash) = GATokenProofOfOwnership::generate_challenge(&config, &random_material)
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
 
+
     server_state
         .write_to_db(
-            credential_hash.clone(), 
+            credential_hash.clone(),
             serde_json::to_vec(&verifier).expect("verifier should be able to serialize to json")
         ).await
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
@@ -47,7 +48,7 @@ pub async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitR
 struct GAAuthValidateRequest {
     ga_hash: String, // hex encoded without leading 0x
     code: String, // hex encoded without leading 0x
-    time: Timestamp, // u64, time when the user init the request 
+    time: Timestamp, // u64, time when the user init the request
 }
 type GAAuthValidateResponse = String; // serialized OwnershipProof
 
@@ -73,10 +74,10 @@ pub async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAA
 
     // TODO: replace with real secret key
     let config = GATokenProofOfOwnershipConfig::new(30, [0u8; 32]); // default GA timeout is 30 seconds
-    
+
     let certificate = GATokenProofOfOwnership::issue_proof(
-        &config, 
-        ga_hash, 
+        &config,
+        ga_hash,
         &GAProof::new(code, time),
         &verifier
     )
