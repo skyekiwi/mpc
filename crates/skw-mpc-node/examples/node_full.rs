@@ -15,14 +15,14 @@ async fn main() {
     client
         .bootstrap_node(
             Some([1u8; 32]), 
-            "/ip4/10.0.0.3/tcp/2620/ws".to_string(), 
+            "/ip4/100.104.199.31/tcp/2620/ws".to_string(), 
             "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
         ).await;
 
     client
         .bootstrap_node(
             Some([2u8; 32]), 
-            "/ip4/10.0.0.3/tcp/2621/ws".to_string(), 
+            "/ip4/100.104.199.31/tcp/2621/ws".to_string(), 
             "mpc-storage-db-12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq".to_string()
         ).await;
 
