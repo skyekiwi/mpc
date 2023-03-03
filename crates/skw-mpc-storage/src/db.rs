@@ -25,6 +25,10 @@ pub enum DBOpIn  {
         result_sender: oneshot::Sender<DBOpOut>,
     },
 
+	ForceFlush {
+		result_sender: oneshot::Sender<DBOpOut>,
+    },
+
     Shutdown {
         result_sender: oneshot::Sender<DBOpOut>,
     },
@@ -41,6 +45,10 @@ pub enum DBOpOut {
     },
 
     DeleteFromDB {
+        status: Result<(), MpcStorageError>,
+    },
+
+	ForceFlush {
         status: Result<(), MpcStorageError>,
     },
 

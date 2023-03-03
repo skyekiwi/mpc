@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    'crates/skw-auth-service',
     'crates/skw-mpc-auth',
     'crates/skw-mpc-client',
     'crates/skw-mpc-node',
