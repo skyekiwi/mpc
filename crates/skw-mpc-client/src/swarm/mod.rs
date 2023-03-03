@@ -121,7 +121,7 @@ pub fn new_swarm_node(
         }
     };
 
-    let local_peer_id = PeerId::from(local_key.public());    
+    let local_peer_id = PeerId::from(local_key.public());
     let swarm = build_swarm(local_key);
 
     // the main outgoing channel

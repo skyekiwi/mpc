@@ -16,6 +16,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 serde = { version = "1.0", features = ["derive"], default-features = false, optional = true}
 skw-mpc-auth = {path = "../skw-mpc-auth"}
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["identify", "serde"]}
+dotenv = "0.15.0"
+hex = "0.4.3"
 
 [dev-dependencies]
 bincode = "1.3.3"

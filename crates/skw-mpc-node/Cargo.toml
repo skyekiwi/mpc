@@ -17,6 +17,7 @@ skw-crypto-curv = { path = "../../crypto/skw-crypto-curv", default-features = fa
 skw-mpc-storage = { path = "../skw-mpc-storage", optional = true}
 skw-mpc-protocol = { path = "../skw-mpc-protocol" }
 skw-mpc-payload = { path = "../skw-mpc-payload" }
+skw-mpc-auth = { path = "../skw-mpc-auth" }
 skw-round-based = { path = "../skw-round-based" }
 
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux", "tokio"]}
@@ -35,7 +36,7 @@ log = "0.4.17"
 pretty_env_logger = "0.4.0"
 
 [features]
-default = ["light-node", "tcp-ws-transport"]
+default = ["full-node", "tcp-ws-transport"]
 tcp-ws-transport = ["libp2p/tcp", "libp2p/websocket", "tokio/rt-multi-thread"]
 
 full-node = ["skw-mpc-storage"]

@@ -78,6 +78,13 @@ pub fn run_db_server(
                         .send(DBOpOut::Shutdown { status: flush_status.and(shutdown_status) })
                         .expect("db out receiver should not been dropped")
                 },
+                DBOpIn::ForceFlush { result_sender } => {
+                    let status = db.flush()
+                        .map_err(|_| MpcStorageError::FailToFlushDB);
+                    result_sender
+                        .send(DBOpOut::ForceFlush { status })
+                        .expect("db out receiver should not been dropped")
+                },
             }
         }
     });

@@ -21,15 +21,6 @@ async fn main() {
             "/ip4/100.104.199.31/tcp/2619/ws".to_string(),
             "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
         ).await;
-    async_executor(async move {
-        loop {
-            let client_res = light_client_node.select_next_some().await;
-            match client_res {
-                Ok(_) => {},
-                Err(error) => { log::error!("Node1 Encountered Error: {:?}", error); }
-            }
-        }
-    });
 
     let (
         local_peer_id,
