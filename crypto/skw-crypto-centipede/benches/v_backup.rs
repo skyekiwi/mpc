@@ -1,0 +1,76 @@
+#![allow(non_snake_case)]
+
+mod bench {
+
+    use skw_crypto_centipede::juggling::proof_system::Proof;
+    use skw_crypto_centipede::juggling::segmentation::Msegmentation;
+    use skw_crypto_centipede::wallet::SecretShare;
+    use criterion::{Criterion, criterion_group};
+
+    use skw_crypto_curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+
+    pub fn full_backup_cycle(c: &mut Criterion) {
+        c.bench_function("full_backup_cycle", move |b| {
+            let segment_size = 8;
+            let y: Scalar<Secp256k1> = Scalar::<Secp256k1>::random();
+            let G = Point::<Secp256k1>::generator();
+            let Y = G.clone() * &y;
+            let x = SecretShare::generate();
+            let Q = G.clone() * &x.secret;
+            b.iter(|| {
+                let (segments, encryptions) =
+                    Msegmentation::to_encrypted_segments(&x.secret, &segment_size, 32, &Y, &G);
+                let proof = Proof::prove(&segments, &encryptions, &G, &Y, &segment_size);
+                let _secret_decrypted = Msegmentation::decrypt(&encryptions, &G, &y, &segment_size);
+                let result = proof.verify(&encryptions, &G, &Y, &Q, &segment_size);
+                assert!(result.is_ok());
+            })
+        });
+    }
+
+    pub fn create_backup(c: &mut Criterion) {
+        c.bench_function("create_backup", move |b| {
+            let segment_size = 8;
+            let y: Scalar<Secp256k1> = Scalar::<Secp256k1>::random();
+            let G = Point::<Secp256k1>::generator();
+            let Y = G.clone() * &y;
+            let x = SecretShare::generate();
+
+            b.iter(|| {
+                let (segments, encryptions) =
+                    Msegmentation::to_encrypted_segments(&x.secret, &segment_size, 32, &Y, &G);
+                let _proof = Proof::prove(&segments, &encryptions, &G, &Y, &segment_size);
+            })
+        });
+    }
+
+    pub fn recover_backup(c: &mut Criterion) {
+        c.bench_function("recover_backup", move |b| {
+            let segment_size = 8;
+            let y: Scalar<Secp256k1> = Scalar::<Secp256k1>::random();
+            let G = Point::<Secp256k1>::generator();
+            let Y = G.clone() * &y;
+            let x = SecretShare::generate();
+            let Q = G.clone() * &x.secret;
+
+            let (segments, encryptions) =
+                Msegmentation::to_encrypted_segments(&x.secret, &segment_size, 32, &Y, &G);
+            let proof = Proof::prove(&segments, &encryptions, &G, &Y, &segment_size);
+            b.iter(|| {
+                let _secret_decrypted = Msegmentation::decrypt(&encryptions, &G, &y, &segment_size);
+                let result = proof.verify(&encryptions, &G, &Y, &Q, &segment_size);
+                assert!(result.is_ok());
+            })
+        });
+    }
+
+    criterion_group! {
+    name = v_backup;
+    config = Criterion::default().sample_size(2);
+    targets =full_backup_cycle,
+    create_backup,
+    recover_backup
+    }
+}
+
+criterion::criterion_main!(bench::v_backup);

@@ -15,10 +15,9 @@ pub struct MpcSwarmBahavior {
 // Sub protocol - p2p request-response
 pub mod skw_mpc_p2p_behavior {
     use serde::{Serialize, Deserialize};
-
-    use async_std::io;
-    use async_trait::async_trait;
+    use tokio::io;
     use futures::prelude::*;
+
     use libp2p::core::upgrade::{read_length_prefixed, write_length_prefixed, ProtocolName};
     use libp2p::request_response::Codec;
     use skw_mpc_payload::{AuthHeader, PayloadHeader};
@@ -60,7 +59,7 @@ pub mod skw_mpc_p2p_behavior {
         }
     }
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl Codec for SkwMpcP2pCodec {
         type Protocol = SkwMpcP2pProtocol;
         type Request = MpcP2pRequest;

@@ -1,0 +1,38 @@
+[package]
+name = "skw-crypto-centipede"
+version = "0.3.1"
+edition = "2021"
+authors = [
+    "Omer <omer@kzencorp.com>",
+    "Gary <gary@kzencorp.com>",
+    "Song Zhou <song.zhou@skye.kiwi>",
+]
+description = "A scheme for instantiating KMS's with recovery"
+repository = "https://github.com/ZenGo-X/centipede"
+license = "GPL-3.0"
+categories = ["cryptography"]
+keywords = ["cryptography", "crypto"]
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+skw-crypto-curv = { path = "../skw-crypto-curv", default-features = false}
+skw-crypto-bulletproofs = { path = "../skw-crypto-bulletproofs", default-features = false}
+
+serde = { version = "1.0", features = ["derive"], default-features = false }
+
+rayon = "1.0.3"
+sha2 = "0.9"
+generic-array = "0.14"
+
+[dev-dependencies]
+criterion = "0.2"
+
+[features]
+default = []
+
+[[bench]]
+name = "v_backup"
+path = "benches/v_backup.rs"
+harness = false

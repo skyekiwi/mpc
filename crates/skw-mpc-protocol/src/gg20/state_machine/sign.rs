@@ -29,7 +29,7 @@ use thiserror::Error;
 
 use crate::utilities::mta::MessageA;
 
-use curv::elliptic::curves::secp256_k1::Secp256k1;
+use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
 
 use skw_round_based::{
     containers::{push::Push, BroadcastMsgs, MessageStore, P2PMsgs, Store, StoreErr},
@@ -44,7 +44,7 @@ mod fmt;
 mod rounds;
 
 use crate::utilities::zk_pdl_with_slack::PDLwSlackProof;
-use curv::BigInt;
+use skw_crypto_curv::BigInt;
 use rounds::*;
 pub use rounds::{CompletedOfflineStage, Error as ProceedError, PartialSignature};
 
@@ -604,7 +604,7 @@ impl IsCritical for Error {
 /// #     state_machine::sign::{CompletedOfflineStage, SignManual, PartialSignature},
 /// #     party_i::{LocalSignature, verify},
 /// # };
-/// # use curv::arithmetic::{BigInt, Converter};
+/// # use skw_crypto_curv::arithmetic::{BigInt, Converter};
 /// # type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// # fn broadcast(msg: PartialSignature) -> Result<()> { panic!() }
 /// # fn wait_messages() -> Result<Vec<PartialSignature>> { panic!() }
@@ -659,8 +659,8 @@ pub enum SignError {
 
 #[cfg(test)]
 mod test {
-    use curv::arithmetic::Converter;
-    use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
+    use skw_crypto_curv::arithmetic::Converter;
+    use skw_crypto_curv::cryptographic_primitives::hashing::{Digest, DigestExt};
     use skw_round_based::dev::Simulation;
     use sha2::Sha256;
 

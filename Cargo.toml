@@ -2,11 +2,19 @@
 members = [
     'crates/skw-auth-service',
     'crates/skw-mpc-auth',
+    'crates/skw-mpc-client',
     'crates/skw-mpc-node',
     'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
     'crates/skw-mpc-storage',
+    # 'crates/skw-mpc-wasm',
     'crates/skw-round-based',
+    
+    'crypto/skw-crypto-bulletproofs',
+    'crypto/skw-crypto-centipede',
+    'crypto/skw-crypto-curv',
+    'crypto/skw-crypto-paillier',
+    'crypto/skw-crypto-zk-paillier',
 ]
 
 exclude = [

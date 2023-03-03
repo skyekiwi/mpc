@@ -1,7 +1,8 @@
 use libp2p::PeerId;
+use serde::{Serialize, Deserialize};
 use skw_mpc_payload::CryptoHash;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientOutcome {
     KeyGen{ 
         peer_id: PeerId,
@@ -13,4 +14,12 @@ pub enum ClientOutcome {
         payload_id: CryptoHash,
         sig: Vec<u8>
     },
+}
+impl ClientOutcome {
+    pub fn payload(&self) -> Vec<u8> {
+        match self {
+            Self::KeyGen {local_key, ..} => local_key,
+            Self::Sign {sig, ..} => sig
+        }.clone()
+    }
 }

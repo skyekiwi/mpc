@@ -29,3 +29,6 @@ mpc-storage-db-*/
 
 crates/skw-auth-service/email-auth-code-storage
 email-auth-code-storage
+crates/skw-mpc-wasm/dist/
+crates/skw-mpc-wasm/pkg/
+wasm-bindgen
