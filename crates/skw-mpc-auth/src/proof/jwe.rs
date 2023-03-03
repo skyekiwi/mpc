@@ -1,11 +1,22 @@
+use biscuit::{JWE, Empty, jwk::JWK};
 use hkdf::Hkdf;
 use serde::{Serialize, Deserialize};
 use sha2::Sha256;
 use blake2::{Blake2s256, Digest};
 
-use josekit::{jwe::Dir, jwt};
+use crate::{ProofSystem, types::Timestamp};
 
-use crate::ProofSystem;
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+struct ClientSideClaims {
+    name: String,
+    pub email: String,
+    pub provider: String,
+    picture: String,
+    sub: String,
+    iat: Timestamp,
+    exp: Timestamp,
+    jti: String,
+}
 
 #[derive(Debug)]
 pub struct JweProofSystem();
@@ -30,10 +41,8 @@ impl Into<String> for JweConfig {
 pub enum JweError {
     InvalidJWE,
     UnMatchedCredentialHash,
-    MissingProviderClaim,
-    MissingEmailClaim,
-    InvalidProviderClaim,
-    InvalidEmailClaim,
+    InvalidTokenHeader,
+    InvalidClaims,
 }
 
 impl ProofSystem for JweProofSystem {
@@ -59,23 +68,32 @@ impl ProofSystem for JweProofSystem {
     fn generate_proof(_verifier: &Self::Verifier, _salt: &Self::Salt) -> Result<Self::Proof, Self::Err> { unreachable!() }
 
     fn verify_proof(proof: &Self::Proof, verifier: &Self::Verifier) -> Result<Self::Output, Self::Err> {
-        let decrypter = Dir.decrypter_from_bytes(&verifier).expect("cannot fail");
-        let (payload, _header) = jwt::decode_with_decrypter(&proof, &decrypter)
-            .map_err(|_| Self::Err::InvalidJWE)?;
-
         // TODO: additional validation needed for email & acceptable provider
-        let provider = payload.claim("provider")
-            .ok_or_else(|| Self::Err::MissingProviderClaim)?
-            .as_str()
-            .ok_or_else(|| Self::Err::InvalidProviderClaim)?;
-        let email = payload.claim("email")
-            .ok_or_else(|| Self::Err::MissingEmailClaim)?
-            .as_str()
-            .ok_or_else(|| Self::Err::InvalidEmailClaim)?;
+        let token: JWE<ClientSideClaims, Empty, Empty> = JWE::new_encrypted(&proof);
+    
+        let key: JWK<Empty> = JWK::new_octet_key(verifier, Default::default());
+        
+        let decrypted = token.into_decrypted(
+            &key,
+            biscuit::jwa::KeyManagementAlgorithm::DirectSymmetricKey,
+            biscuit::jwa::ContentEncryptionAlgorithm::A256GCM,
+        )
+            .map_err(|e| {
+                println!("{:?} {:?}", e, verifier);
+                JweError::InvalidTokenHeader
+            })?
+            .payload()
+            .expect("should be decrypted")
+            .clone()
+            .unwrap_encoded() // should be encoded by now
+            .encode();
+    
+        let claims = serde_json::from_str::<ClientSideClaims>(&decrypted)
+            .map_err(|_| JweError::InvalidClaims)?;
 
         let mut credential_hasher = Blake2s256::new();
-        credential_hasher.update(provider.as_bytes());
-        credential_hasher.update(email.as_bytes());
+        credential_hasher.update(claims.provider.as_bytes());
+        credential_hasher.update(claims.email.as_bytes());
         let credential_hash = credential_hasher.finalize();
 
         Ok(credential_hash.into())
@@ -84,9 +102,9 @@ impl ProofSystem for JweProofSystem {
 
 #[test]
 fn test() {
-    let verifier = JweProofSystem::generate_verifier((), "chokowallet".into()).unwrap();
+    let verifier = JweProofSystem::generate_verifier((), "ee9bcd27ed0d2bbca5f0c620e0dcc01a7d4cc76bfa8fa2a8e2de964848a9d8b8".into()).unwrap();
     let res = JweProofSystem::verify_proof(
-        &"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.._SGRCB7xJDGjt2Og.fnk4QWVusvnMAdaRwvcEtKul9ZWFa994mjMh8D8nEoeG3D8l8Y2TlC0U8hTj-N0YkljTKOg7p0r6v2tk2KYUPCIEGwEarpC_UlADmwTtAJubpCRiQwUnpUYdQ0tRpYFV_bNGDkr-OkUfIe-8iagTTnmoIwBE6ZWTV-ZcF4qxgOWAr45jwFIQS3yNwpF0MLWR3lnzjAOcfya_5ZfOxNVqMEc_wp_4Fmn2myU8878Hhld-u5Zcz5TXfYeQcQYryFcJAfCulKrUXrb-GsGFyYzw0ZbpLMD3NJ4gx0wA6UOUaFJC9mAKipxHf7GNF9WEiMhmD1FC17SEmME-V1-wDaC9z3lwI53p334NLHss0BJGdtWAqCgx-14.FY4Isf4EnB5NpMXRuni-OA".to_string(), 
+        &"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..zwb0peuwOCmSzPvW.TUt37qdndS6Z9XZ_vqIYTidiE6VTqp7irPh5LGnwVXOKdCAK0jnKrs8XClwR7E6gp92CycD7blXhsOWd09EEW2DSKC-7qPNAP-LC80K8-JYfySrV1ZERwgWmZcZVkujAkEN1hizpckDVm8FcfXxOPFg8NN8-EsXLxCq8QAoBFSMNc7m8uR6B2HKitHErkUs1HqpzMYz5lTqsf1bbwU8W-YdWXeZZKJxQ8QaQaY6Hlgujr-NUmSw4uf7Qt1z_VRQBKUQ51HU3RG8rsjksGibBwK9Ngg8-extyRYoTIt6JxUoC4p15R4hCqPbpTgWDc5Zq1ShwwGRVGMuCmkuQOuk6xWsjWxmvPdNnMBZg3D31d5C7C2wPiw.73_C0v-Gn0ZjWCbCoRsaUg".to_string(), 
         &verifier,
     );
 

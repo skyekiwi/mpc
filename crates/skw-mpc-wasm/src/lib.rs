@@ -6,11 +6,13 @@ use std::panic;
 use futures::sink::SinkExt;
 
 #[wasm_bindgen]
-pub async fn ext_run_keygen(payload: &str) -> String {
+pub async fn ext_run_keygen(auth_header: &str, payload: &str) -> String {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug);
 
     let request: PayloadHeader = serde_json::from_str(payload).unwrap();
+    let auth_header: AuthHeader = serde_json::from_str(auth_header).unwrap();
+
     let ( _, mut client, event_loop, mut shutdown_handler) = new_swarm_node( None );
     async_executor(event_loop.run());
 
@@ -28,7 +30,7 @@ pub async fn ext_run_keygen(payload: &str) -> String {
         .send_request(
             client_node.0, 
             MpcP2pRequest::Mpc { 
-                auth_header: AuthHeader::default(), 
+                auth_header, 
                 job_header: request,
                 maybe_local_key: None,
             }
@@ -39,13 +41,13 @@ pub async fn ext_run_keygen(payload: &str) -> String {
 }
 
 #[wasm_bindgen]
-pub async fn ext_run_sign(payload: &str, local_key: &str) -> String {
+pub async fn ext_run_sign(auth_header: &str, payload: &str, local_key: &str) -> String {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug);
 
     let request: PayloadHeader = serde_json::from_str(payload).unwrap();
-    log::info!("{:?}", request);
-    log::info!("{:?}", local_key);
+    let auth_header: AuthHeader = serde_json::from_str(auth_header).unwrap();
+
     let local_key = local_key.as_bytes();
 
     let ( _, mut client, event_loop, mut shutdown_handler) = new_swarm_node( None );
@@ -65,7 +67,7 @@ pub async fn ext_run_sign(payload: &str, local_key: &str) -> String {
         .send_request(
             client_node.0, 
             MpcP2pRequest::Mpc { 
-                auth_header: AuthHeader::default(), 
+                auth_header, 
                 job_header: request,
                 maybe_local_key: Some(local_key.to_vec()),
             }

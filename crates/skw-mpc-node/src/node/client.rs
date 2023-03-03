@@ -24,6 +24,10 @@ impl NodeClient {
         }
     }
 
+    pub fn peer_id(&self) -> PeerId {
+        self.self_peer_id.unwrap()
+    }
+
     pub async fn bootstrap_node(
         &mut self,
         local_key: Option<[u8; 32]>,

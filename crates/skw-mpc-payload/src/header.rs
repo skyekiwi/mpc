@@ -1,28 +1,31 @@
+use std::fmt::Debug;
+
+use skw_mpc_auth::{SelfProveableSystem, Ed25519SelfProveableSystem, Ed25519Proof};
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, Deserialize};
 use crate::types::{CryptoHash, SecertKey};
-use skw_mpc_auth::{AuthCode};
+use crate::env::EnvironmentVar;
 
 // TODO: a const for well-known pub key of auth provider
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthHeader {
-    auth_code: AuthCode, 
-    auth_code_sig: Vec<u8>
+    proof: Ed25519Proof,
 }
 
 impl AuthHeader {
     pub fn new(
-        auth_code: AuthCode, 
-        auth_code_sig: Vec<u8>,
+        proof: Ed25519Proof
     ) -> Self {
-        Self {
-            auth_code, auth_code_sig
-        }
+        Self { proof }
     }
 
     pub fn validate(&self) -> bool {
-        // TODO: validate the sig first!
-        self.auth_code.validate()
+        let verifier_config = EnvironmentVar::load().usage_verify_key;
+
+        Ed25519SelfProveableSystem::verify_proof(
+            &verifier_config.into(), 
+            &self.proof
+        ).is_ok()
     }
 }
 
@@ -31,7 +34,6 @@ impl AuthHeader {
 pub enum  PayloadType {
     
     // with the hash of the message to be signed. 
-    // TODO: change the skw-mpc-protocol to not do hash on it
     SignOffline {
         message: CryptoHash,
         keygen_id: CryptoHash,
@@ -98,9 +100,6 @@ impl Default for PayloadHeader {
 
 #[cfg(test)]
 mod test {
-    use skw_mpc_auth::{EmailAuth};
-    use crate::header::AuthHeader;
-
     use super::{PayloadHeader};
 
     #[test]
@@ -116,26 +115,21 @@ mod test {
         println!("{:?}", restructred);
     }
 
-    #[test]
-    fn serde_auth_header() {
+    // #[test]
+    // fn serde_auth_header() {
 
-        let auth = EmailAuth::new(
-            "test@skye.kiwi",
-            [0u8; 32],
-            0
-        );
         
-        let header = AuthHeader::new(
-            auth.get_code(None).unwrap(),
-            [0u8; 64].to_vec(), // TODO: replace with real sig on ed25519
-        );
+    //     let header = AuthHeader::new(
+    //         auth.get_code(None).unwrap(),
+    //         [0u8; 64].to_vec(), // TODO: replace with real sig on ed25519
+    //     );
 
-        println!("{:?}", header);
-        let encoded = bincode::serialize(&header).unwrap();
-        println!("{:?}", encoded);
+    //     println!("{:?}", header);
+    //     let encoded = bincode::serialize(&header).unwrap();
+    //     println!("{:?}", encoded);
 
-        let restructred: AuthHeader = bincode::deserialize(&encoded).unwrap();
+    //     let restructred: AuthHeader = bincode::deserialize(&encoded).unwrap();
 
-        println!("{:?}", restructred);
-    }
+    //     println!("{:?}", restructred);
+    // }
 }

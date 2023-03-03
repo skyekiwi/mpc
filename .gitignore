@@ -19,8 +19,6 @@ node_modules/
 
 .env
 
-/bin
-
 mock/
 
 test.md
@@ -32,3 +30,7 @@ email-auth-code-storage
 crates/skw-mpc-wasm/dist/
 crates/skw-mpc-wasm/pkg/
 wasm-bindgen
+
+peer_ids
+
+.bin

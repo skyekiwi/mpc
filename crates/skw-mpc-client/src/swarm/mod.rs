@@ -14,8 +14,6 @@ use futures::channel::mpsc;
 #[cfg(feature = "full-node")]
 use skw_mpc_node::node::NodeClient;
 
-use crate::error::MpcClientError;
-
 use self::behavior::{MpcSwarmBahavior, SkwMpcP2pCodec, SkwMpcP2pProtocol};
 
 // re-export
@@ -123,7 +121,7 @@ pub fn new_swarm_node(
         }
     };
 
-    let local_peer_id = PeerId::from(local_key.public());    
+    let local_peer_id = PeerId::from(local_key.public());
     let swarm = build_swarm(local_key);
 
     // the main outgoing channel

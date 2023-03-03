@@ -1,13 +1,12 @@
 [workspace]
 members = [
-    'crates/skw-auth-service',
     'crates/skw-mpc-auth',
     'crates/skw-mpc-client',
     'crates/skw-mpc-node',
     'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
     'crates/skw-mpc-storage',
-    # 'crates/skw-mpc-wasm',
+    'crates/skw-mpc-wasm',
     'crates/skw-round-based',
     
     'crypto/skw-crypto-bulletproofs',
@@ -15,10 +14,14 @@ members = [
     'crypto/skw-crypto-curv',
     'crypto/skw-crypto-paillier',
     'crypto/skw-crypto-zk-paillier',
+
+    # 'bin/skw-auth-service',
+    # 'bin/skw-mpc-client-bin',
+    # 'bin/skw-mpc-node-bin',
+
 ]
 
-exclude = [
+exclude = []
 
-]
 [profile.release]
 panic = 'unwind'
