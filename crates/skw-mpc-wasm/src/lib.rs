@@ -1,4 +1,3 @@
-use hex::serde;
 use skw_mpc_client::{swarm::{new_swarm_node, MpcP2pRequest}, async_executor};
 use wasm_bindgen::prelude::*;
 use skw_mpc_payload::{PayloadHeader, header::PayloadType, AuthHeader};

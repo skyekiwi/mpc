@@ -6,7 +6,8 @@ use skw_auth_service::{
 	routes::usage::{usage_link, usage_validate}, shutdown_db
 };
 use skw_mpc_storage::{run_db_server, default_mpc_storage_opt};
-use tide::{utils::{After}, Response, StatusCode};
+use tide::{utils::{After}, Response, StatusCode, http::headers::HeaderValue};
+use tide::security::{CorsMiddleware, Origin};
 
 #[async_std::main]
 async fn main() {
@@ -27,6 +28,12 @@ async fn main() {
 	let state = ServerState::new(&storage_in_sender);
 	let mut app = tide::with_state(state);
 
+	app.with(
+		CorsMiddleware::new()
+		.allow_methods("POST".parse::<HeaderValue>().unwrap())
+		.allow_origin(Origin::from("*"))
+		.allow_credentials(false)
+	);
 	app.with(After(|mut res: Response | async {
 		if let Some(err) = res.error() {
 			let msg = format!("Error: {:?}", err);

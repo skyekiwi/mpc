@@ -134,7 +134,7 @@ mod swarm_full {
 #[cfg(feature = "light-node")]
 mod swarm_light {
     use super::*;
-
+    
     pub fn new_light_swarm_node(
         local_key: Option<[u8; 32]>
     ) -> (
