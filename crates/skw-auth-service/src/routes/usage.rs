@@ -7,6 +7,7 @@ use tide::prelude::*;
 use serde::Deserialize;
 
 use crate::ServerState;
+use crate::env::EnvironmentVar;
 
 // Route: /usage/link 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +19,8 @@ type UsageLinkResponse = String;
 
 pub async fn usage_link(mut req: Request<ServerState>) -> tide::Result<UsageLinkResponse> {
     let UsageLinkRequest { keygen_id, ownership_proof } = req.body_json().await?;
+    let env = EnvironmentVar::load();
+
     let keygen_id: [u8; 32] = hex::decode(&keygen_id)
         .map_err(|e| tide::Error::from_str(500, format!("LinkUsage Error {:?}", e)) )?
         .try_into()
@@ -26,11 +29,11 @@ pub async fn usage_link(mut req: Request<ServerState>) -> tide::Result<UsageLink
         .map_err(|_| tide::Error::from_str(500, format!("LinkUsage Error unable to parse ownership_proof")) )?;
 
     // 1. make all keys align
-    let ownership_prover_default_config: Ed25519ProverConfig = [0u8; 32].into();
+    let ownership_prover_default_config: Ed25519ProverConfig = env.ownership_prover_key.into();
     let ownership_verifier_default_config  = Ed25519SelfProveableSystem::derive_verifier_config(&ownership_prover_default_config)
         .map_err(|e| tide::Error::from_str(500, format!("LinkUsage Error {:?}", e)) )?;
 
-    let usage_prover_default_config: Ed25519ProverConfig = [1u8; 32].into();
+    let usage_prover_default_config: Ed25519ProverConfig = env.usage_cert_key.into();
 
     // 2. generate a certificate
     let certification = MpcUsageCertification::issue_usage_certification(
@@ -58,6 +61,8 @@ type UsageValidateResponse = String; // dummy "ok"
 
 pub async fn usage_validate(mut req: Request<ServerState>) -> tide::Result<UsageValidateResponse> {
     let UsageValidateRequest { keygen_id, credential_hash, usage_certification} = req.body_json().await?;
+    let env = EnvironmentVar::load();
+
     let keygen_id: [u8; 32] = hex::decode(&keygen_id)
         .map_err(|e| tide::Error::from_str(500, format!("LinkValidate Error {:?}", e)) )?
         .try_into()
@@ -70,7 +75,7 @@ pub async fn usage_validate(mut req: Request<ServerState>) -> tide::Result<Usage
         .map_err(|_| tide::Error::from_str(500, format!("LinkValidate Error unable to parse usage_certification")) )?;
 
     // 1. make all keys align    
-    let usage_prover_default_config: Ed25519ProverConfig = [1u8; 32].into();
+    let usage_prover_default_config: Ed25519ProverConfig = env.usage_cert_key.into();
     let usage_verifier_default_config  = Ed25519SelfProveableSystem::derive_verifier_config(&usage_prover_default_config)
         .map_err(|e| tide::Error::from_str(500, format!("LinkValidate Error {:?}", e)) )?;
 

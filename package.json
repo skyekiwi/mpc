@@ -8,7 +8,12 @@
     "main:build": "node ./scripts/main-build.cjs",
     "main:ci": "node ./scripts/main-ci.cjs",
     "main:test": "node ./scripts/main-test.cjs",
-    "copy:examples": "node ./scripts/copy-examples.cjs"
-
+    "copy:examples": "node ./scripts/copy-examples.cjs",
+    "gen-env": "node ./scripts/gen-env.cjs"
+  },
+  "dependencies": {
+    "@skyekiwi/crypto": "^1.0.1",
+    "@skyekiwi/util": "^1.0.1",
+    "tweetnacl": "^1.0.3"
   }
 }

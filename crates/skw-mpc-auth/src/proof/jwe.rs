@@ -84,9 +84,9 @@ impl ProofSystem for JweProofSystem {
 
 #[test]
 fn test() {
-    let verifier = JweProofSystem::generate_verifier((), "chokowallet".into()).unwrap();
+    let verifier = JweProofSystem::generate_verifier((), "ee9bcd27ed0d2bbca5f0c620e0dcc01a7d4cc76bfa8fa2a8e2de964848a9d8b8".into()).unwrap();
     let res = JweProofSystem::verify_proof(
-        &"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.._SGRCB7xJDGjt2Og.fnk4QWVusvnMAdaRwvcEtKul9ZWFa994mjMh8D8nEoeG3D8l8Y2TlC0U8hTj-N0YkljTKOg7p0r6v2tk2KYUPCIEGwEarpC_UlADmwTtAJubpCRiQwUnpUYdQ0tRpYFV_bNGDkr-OkUfIe-8iagTTnmoIwBE6ZWTV-ZcF4qxgOWAr45jwFIQS3yNwpF0MLWR3lnzjAOcfya_5ZfOxNVqMEc_wp_4Fmn2myU8878Hhld-u5Zcz5TXfYeQcQYryFcJAfCulKrUXrb-GsGFyYzw0ZbpLMD3NJ4gx0wA6UOUaFJC9mAKipxHf7GNF9WEiMhmD1FC17SEmME-V1-wDaC9z3lwI53p334NLHss0BJGdtWAqCgx-14.FY4Isf4EnB5NpMXRuni-OA".to_string(), 
+        &"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..1OF2hGAtCq5cpYp9.k6sGKaEEGf2ZIaXNrvprNeR0JrnTYXfIf2tqgobJrsQr65IFpBduX0oL3xSRnCqyhNCrk-1pmL2G0eA9IXIAKsue-WpGRZcYtVU5SyeJOUHgqk8Q7y3XHT4rLKg2Mg3CrkNvUJgjCWieZt8niZ_6r4WDnVv2Gh8bPNf9s4ijjBwkFEClB9cRQh-V06LsWLnE-I051Mo_bdK25TNp5JER7yoT20jSkfOZhqFU7cufpngDQUG3E3x37l9L9bIXLKtOZvoGMp056x9Z2TUg-4cgB20WuBYY3oqdtepp4c68tuLCZ2qT9Bp27pMOPvhYM06ppRojbFIoJVP_YWW9dDas8yqWVAfQYONMnZLJhZB86ucZEO-A-H8.UnEZb2Vad-4aLP8Ev2Cyeg".to_string(), 
         &verifier,
     );
 

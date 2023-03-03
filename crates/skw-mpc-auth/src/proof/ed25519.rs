@@ -6,7 +6,7 @@ use super::SelfProveableSystem;
 #[derive(Debug)]
 pub struct Ed25519SelfProveableSystem();
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ed25519Proof {
     payload: [u8; 32],
     signature: Vec<u8>,
@@ -18,12 +18,12 @@ impl<'a> Ed25519Proof {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ed25519ProverConfig {
     secret_key: [u8; 32]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ed25519VerfierConfig {
     public_key: [u8; 32]
 }
@@ -40,7 +40,7 @@ impl From<[u8; 32]> for Ed25519VerfierConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ed25519Error {
     SecretKeyError,
     PublicKeyError,
@@ -95,6 +95,7 @@ fn smoke_test() {
     let prover_config = [1u8; 32].into();
     let verifier_config = Ed25519SelfProveableSystem::derive_verifier_config(&prover_config).unwrap();
 
+    println!("{:?}", verifier_config);
     let proof = Ed25519SelfProveableSystem::generate_proof(&prover_config, message).unwrap();
     Ed25519SelfProveableSystem::verify_proof(&verifier_config, &proof).unwrap();
 }

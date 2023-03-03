@@ -148,14 +148,15 @@ impl MpcSwarmEventLoop {
                         MpcP2pRequest::StartJob { 
                             #[cfg(feature = "full-node")]
                             job_header, 
-                            .. 
+                            #[cfg(feature = "full-node")]
+                            auth_header,
+                            ..
                         } => {
 
                             #[cfg(feature = "full-node")]
                             {
                                 // if the auth_header is invalid - send error
-                                // if !auth_header.validate() {
-                                if !true {
+                                if !auth_header.validate() {
                                     match self.swarm
                                         .behaviour_mut()
                                         .request_response

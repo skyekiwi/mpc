@@ -1,6 +1,7 @@
 pub mod util;
 
 pub mod routes;
+mod env;
 
 use futures::{channel::{mpsc, oneshot}, SinkExt};
 use skw_mpc_storage::{db::{DBOpIn, DBOpOut}, types::MpcStorageError};

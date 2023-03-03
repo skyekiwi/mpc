@@ -5,7 +5,7 @@ use skw_auth_service::{
 	routes::oauth::oauth_auth_validate,
 	routes::usage::{usage_link, usage_validate}, shutdown_db
 };
-use skw_mpc_storage::db::{run_db_server, default_mpc_storage_opt};
+use skw_mpc_storage::{run_db_server, default_mpc_storage_opt};
 use tide::{utils::{After}, Response, StatusCode};
 
 #[async_std::main]

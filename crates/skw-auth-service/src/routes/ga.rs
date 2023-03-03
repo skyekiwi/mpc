@@ -9,6 +9,7 @@ use tide::prelude::*;
 use serde::Deserialize;
 
 use crate::ServerState;
+use crate::env::EnvironmentVar;
 
 // Route: /ga/init
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,10 +20,10 @@ type GAAuthInitResponse = String;
 pub async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitResponse> {
     // let EmailAuthInitRequest { email } = req.body_json().await?;
     let mut server_state = req.state().clone(); // Cost of clone is pretty low here ... but there might be a better way
+    let env = EnvironmentVar::load();
 
     // 1. Generate & store a verifier
-    // TODO: replace with real secret key
-    let config = GATokenProofOfOwnershipConfig::new(30, [0u8; 32]); // default GA timeout is 30 seconds
+    let config = GATokenProofOfOwnershipConfig::new(30, env.ownership_prover_key); // default GA timeout is 30 seconds
 
     // generate a random material base
     let random_material: [u8; 32] = rand::random();
@@ -54,6 +55,8 @@ type GAAuthValidateResponse = String; // serialized OwnershipProof
 
 pub async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAAuthValidateResponse> {
     let GAAuthValidateRequest { ga_hash, code, time } = req.body_json().await?;
+    let env = EnvironmentVar::load();
+
     let ga_hash: [u8; 32] = hex::decode(&ga_hash)
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?
         .try_into()
@@ -72,8 +75,7 @@ pub async fn ga_auth_validate(mut req: Request<ServerState>) -> tide::Result<GAA
     let verifier = serde_json::from_slice(&verifier_bytes)
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
 
-    // TODO: replace with real secret key
-    let config = GATokenProofOfOwnershipConfig::new(30, [0u8; 32]); // default GA timeout is 30 seconds
+    let config = GATokenProofOfOwnershipConfig::new(30, env.ownership_prover_key); // default GA timeout is 30 seconds
 
     let certificate = GATokenProofOfOwnership::issue_proof(
         &config,
