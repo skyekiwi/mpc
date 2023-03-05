@@ -96,6 +96,8 @@ fn smoke_test() {
         &verifier
     ).unwrap();
 
+    println!("{:?}", serde_json::to_string(&certification));
+
     let verifier_config = Ed25519SelfProveableSystem::derive_verifier_config(
         &default_config.into(),
     ).unwrap();

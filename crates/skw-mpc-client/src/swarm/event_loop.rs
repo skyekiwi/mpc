@@ -124,6 +124,7 @@ impl MpcSwarmEventLoop {
                 match message {
                     // p2p message request hanlder
                     request_response::Message::Request {
+                        #[cfg(feature = "full-node")]
                         request_id,
                         #[cfg(feature = "full-node")]
                         request, 
@@ -132,7 +133,7 @@ impl MpcSwarmEventLoop {
                     } => {
                         #[cfg(feature = "full-node")]
                         match request {
-                            MpcP2pRequest::Mpc { auth_header, job_header, maybe_local_key } => {                                
+                            MpcP2pRequest::Mpc { auth_header, job_header, maybe_local_key } => {    
                                 match self.light_node_client.send_request(
                                     job_header, auth_header, maybe_local_key
                                 )
@@ -142,10 +143,10 @@ impl MpcSwarmEventLoop {
                                         .behaviour_mut()
                                         .request_response
                                         .send_response(channel, MpcP2pResponse::Mpc { 
-                                            payload: client_outcome.payload() 
+                                            payload: Ok(client_outcome.payload()) 
                                         })
                                     {
-                                        Ok(_) => {}
+                                        Ok(_) => { } // let the - Response - section take over
                                         Err(response) => {
                                             log::debug!("Mpc StartJob Reponse channel closed {:?}", response);
                                             self
@@ -158,12 +159,22 @@ impl MpcSwarmEventLoop {
                                     },
 
                                     Err(e) => {
-                                        self
-                                            .pending_request
-                                            .remove(&request_id)
-                                            .expect("client request channel to still be pending.")
-                                            .send(Err(MpcClientError::MpcNodeError(e.to_string())))
-                                            .expect("p2p response receiver not to be dropped");
+                                        match self.swarm
+                                            .behaviour_mut()
+                                            .request_response
+                                            .send_response(channel, MpcP2pResponse::Mpc { payload: Err(MpcClientError::MpcNodeError(e.to_string()))}) 
+                                        {
+                                                Ok(_) => { } // let the - Response - section take over
+                                                Err(response) => {
+                                                    log::debug!("Mpc StartJob Reponse channel closed {:?}", response);
+                                                    self
+                                                        .pending_request
+                                                        .remove(&request_id)
+                                                        .expect("client request channel to still be pending.")
+                                                        .send(Err(MpcClientError::SwarmP2pError(SwarmP2pError::ResponseChannelClose)))
+                                                        .expect("p2p response receiver not to be dropped");
+                                                }
+                                        }
                                     }
 
                                 }  

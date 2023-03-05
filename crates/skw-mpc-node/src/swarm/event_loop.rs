@@ -111,6 +111,7 @@ impl MpcSwarmEventLoop {
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
+                log::debug!("ConnectionEstablished {:?}", peer_id);
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender
@@ -157,6 +158,8 @@ impl MpcSwarmEventLoop {
                             {
                                 // if the auth_header is invalid - send error
                                 if !auth_header.validate() {
+                                // if false {
+                                    log::error!("Received Invalid AuthHeader");
                                     match self.swarm
                                         .behaviour_mut()
                                         .request_response

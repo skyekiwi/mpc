@@ -8,6 +8,7 @@ use super::client_outcome::ClientOutcome;
 #[cfg(feature = "light-node")]
 use skw_mpc_payload::{PayloadHeader, AuthHeader};
 
+#[derive(Debug)]
 pub enum ClientRequest {
     BootstrapNode {
         local_key: Option<[u8; 32]>,

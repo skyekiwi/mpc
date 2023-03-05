@@ -22,6 +22,8 @@ pub mod skw_mpc_p2p_behavior {
     use libp2p::request_response::Codec;
     use skw_mpc_payload::{AuthHeader, PayloadHeader};
 
+    use crate::error::MpcClientError;
+
     #[derive(Debug, Clone)]
     pub struct SkwMpcP2pProtocol();
     #[derive(Clone)]
@@ -48,12 +50,12 @@ pub mod skw_mpc_p2p_behavior {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum MpcP2pResponse {
         Mpc {
-            payload: Vec<u8>, // can be either sign or keygen output
+            payload: Result<Vec<u8>, MpcClientError>, // can be either sign or keygen output
         }
     }
 
     impl MpcP2pResponse {
-        pub fn payload(&self) -> Vec<u8> {
+        pub fn payload(&self) -> Result<Vec<u8>, MpcClientError> {
             match self {
                 Self::Mpc{ payload } => payload.clone(),
             }

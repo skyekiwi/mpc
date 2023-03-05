@@ -16,7 +16,6 @@ pub async fn ext_run_keygen(auth_header: &str, payload: &str, client_identity: &
 
     let request: PayloadHeader = serde_json::from_str(payload).unwrap();
     let auth_header: AuthHeader = serde_json::from_str(auth_header).unwrap();
-
     let ( _, mut client, event_loop, mut shutdown_handler) = new_swarm_node( None );
     async_executor(event_loop.run());
 
@@ -39,9 +38,12 @@ pub async fn ext_run_keygen(auth_header: &str, payload: &str, client_identity: &
                 maybe_local_key: None,
             }
         ).await;
-    
     shutdown_handler.send(()).await;
-    String::from_utf8(res.unwrap().payload()).unwrap()
+
+    match res.unwrap().payload() {
+        Ok(payload) => String::from_utf8(payload).unwrap(),
+        Err(e) => format!("Node Returns Error {:?}", e)
+    }
 }
 
 #[wasm_bindgen]
@@ -77,5 +79,8 @@ pub async fn ext_run_sign(auth_header: &str, payload: &str, local_key: &str, cli
         ).await;
     
     shutdown_handler.send(()).await;
-    String::from_utf8(res.unwrap().payload()).unwrap()
+    match res.unwrap().payload() {
+        Ok(payload) => String::from_utf8(payload).unwrap(),
+        Err(e) => format!("Node Returns Error {:?}", e)
+    }
 }

@@ -13,23 +13,23 @@ async fn main() {
     pretty_env_logger::init();
 
     let client_node: (PeerId, Multiaddr) = (
-        "12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/2622/ws/p2p/12D3KooWPT98FXMfDQYavZm66EeVjTqP9Nnehn1gyaydqV8L8BQw".parse().unwrap()
+        "12D3KooWDMdKQcMKbEc9giHEAcunLQoJCzxgmmTef6ZpVQkf56cu".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/2619/ws/p2p/12D3KooWDMdKQcMKbEc9giHEAcunLQoJCzxgmmTef6ZpVQkf56cu".parse().unwrap()
     );
 
     let node1 = (
-        "12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/2619/ws/p2p/12D3KooWRndVhVZPCiQwHBBBdg769GyrPUW13zxwqQyf9r3ANaba".parse().unwrap()
+        "12D3KooWLYLcvqbj1TBvM8u83jotaCEuwMqVhuRENdA3CfEA3dHa".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/2622/ws/p2p/12D3KooWLYLcvqbj1TBvM8u83jotaCEuwMqVhuRENdA3CfEA3dHa".parse().unwrap()
     );
 
     let node2 = (
-        "12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/2620/ws/p2p/12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".parse().unwrap()
+        "12D3KooWLrtYUi9CRjE9KqTtWtxtkUg7ys56zwJ6rTi5b9GXGRdd".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/2621/ws/p2p/12D3KooWLrtYUi9CRjE9KqTtWtxtkUg7ys56zwJ6rTi5b9GXGRdd".parse().unwrap()
     );
 
     let node3 = (
-        "12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq".parse().unwrap(), 
-        "/ip4/10.0.0.3/tcp/2621/ws/p2p/12D3KooWJWoaqZhDaoEFshF7Rh1bpY9ohihFhzcW6d69Lr2NASuq".parse().unwrap()
+        "12D3KooWFAYpT3YAoREqXMK4v3ghPS2SjjuhHgBxkhco1xU15wFs".parse().unwrap(), 
+        "/ip4/10.0.0.3/tcp/2620/ws/p2p/12D3KooWFAYpT3YAoREqXMK4v3ghPS2SjjuhHgBxkhco1xU15wFs".parse().unwrap()  
     );
 
     let keygen_request = PayloadHeader {
@@ -71,7 +71,8 @@ async fn main() {
                 maybe_local_key: None,
             }
         ).await;
-    let local_key = res.unwrap().payload();
+    println!("{:?}", res);
+    let local_key = res.unwrap().payload().unwrap();
     
     println!("KeyGen Res {:?}", decode_key(&local_key));
     println!("Sending Sign Req");
@@ -86,7 +87,7 @@ async fn main() {
             }
         ).await;
 
-    let sig_payload = res.unwrap().payload();
+    let sig_payload = res.unwrap().payload().unwrap();
     let sig = decode_signature(&sig_payload);
     println!("Result {:?}", sig);
 }

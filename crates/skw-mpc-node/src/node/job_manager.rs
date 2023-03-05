@@ -73,15 +73,22 @@ impl<'node> JobManager<'node> {
         new_auth_header: AuthHeader, 
         new_header: PayloadHeader,
     ) -> Result<(), MpcNodeError> {
+        log::debug!("Init new job locally");
         for (peer, peer_addr) in new_header.clone().peers.iter() {    
             if peer.clone() != self.local_peer_id.clone() {
+                log::debug!("{:?} {:?}", peer, peer_addr);
                 self.client.dial(peer.clone(), peer_addr.clone()).await?;
-                self.client.send_request( peer.clone(), 
+                let res = self.client.send_request( peer.clone(), 
                     MpcP2pRequest::StartJob { 
                         auth_header: new_auth_header.clone(),
                         job_header: new_header.clone(), 
                     }
                 ).await?;
+
+                // futher unpack Errors in MpcP2pResponse for light client
+                if let MpcP2pResponse::StartJob { status } = res {
+                    status?;
+                }
             }
         }
         Ok(())

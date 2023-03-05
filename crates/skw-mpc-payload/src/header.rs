@@ -100,6 +100,10 @@ impl Default for PayloadHeader {
 
 #[cfg(test)]
 mod test {
+    use skw_mpc_auth::Ed25519Proof;
+
+    use crate::AuthHeader;
+
     use super::{PayloadHeader};
 
     #[test]
@@ -115,21 +119,23 @@ mod test {
         println!("{:?}", restructred);
     }
 
-    // #[test]
-    // fn serde_auth_header() {
+    #[test]
+    fn serde_auth_header() {
 
+        let proof = Ed25519Proof::default();
+        let header = AuthHeader::new( proof );
+
+        println!("{:?}", header);
+        let encoded = serde_json::to_string(&header).unwrap();
+        println!("{:?}", encoded);
+
+        let encoded = 
+        "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
+        "{\"proof\":{\"payload\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"signature\":\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}";
+        // "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
         
-    //     let header = AuthHeader::new(
-    //         auth.get_code(None).unwrap(),
-    //         [0u8; 64].to_vec(), // TODO: replace with real sig on ed25519
-    //     );
+        let restructred: AuthHeader = serde_json::from_str(&encoded).unwrap();
 
-    //     println!("{:?}", header);
-    //     let encoded = bincode::serialize(&header).unwrap();
-    //     println!("{:?}", encoded);
-
-    //     let restructred: AuthHeader = bincode::deserialize(&encoded).unwrap();
-
-    //     println!("{:?}", restructred);
-    // }
+        println!("{:?}", restructred);
+    }
 }

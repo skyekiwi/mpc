@@ -39,6 +39,8 @@ impl NodeClient {
             .send(ClientRequest::BootstrapNode { local_key, listen_addr, db_name, result_sender })
             .await
             .expect("mpc node exteranl request receiver not to be droppped");
+
+        // Result on the initial bootstrapping
         let result = result_receiver.select_next_some().await;
         match result {
             Ok((peer_id, _peer_addr)) => { self.self_peer_id = Some(peer_id);  },

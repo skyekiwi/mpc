@@ -1,15 +1,26 @@
 use ed25519_dalek::{SecretKey, Keypair, Signer, PublicKey};
-use serde::{Serialize, Deserialize};
+use serde::{self, Serialize, Deserialize};
+use serde_hex::{SerHex, Strict};
 
 use super::SelfProveableSystem;
 
 #[derive(Debug)]
 pub struct Ed25519SelfProveableSystem();
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ed25519Proof {
+    #[serde(with = "SerHex::<Strict>")]
     payload: [u8; 32],
-    signature: Vec<u8>,
+    #[serde(with = "SerHex::<Strict>")]
+    signature: [u8; 64],
+}
+
+impl Default for Ed25519Proof {
+    fn default() -> Self {
+        Self {
+            payload: [0u8; 32],
+            signature: [0u8; 64],
+        }
+    }
 }
 
 impl<'a> Ed25519Proof {
@@ -63,7 +74,7 @@ impl SelfProveableSystem for Ed25519SelfProveableSystem {
             .map_err(|_| Ed25519Error::SecretKeyError)?;
         let public = (&secret).into();
         let keypair = Keypair { secret, public };
-        let signature = keypair.sign(&payload[..]).to_bytes().to_vec();
+        let signature = keypair.sign(&payload[..]).to_bytes().try_into().expect("signature should always be 64 bytes");
 
         Ok(Ed25519Proof{ payload, signature })
     }
@@ -95,7 +106,8 @@ fn smoke_test() {
     let prover_config = [1u8; 32].into();
     let verifier_config = Ed25519SelfProveableSystem::derive_verifier_config(&prover_config).unwrap();
 
-    println!("{:?}", verifier_config);
     let proof = Ed25519SelfProveableSystem::generate_proof(&prover_config, message).unwrap();
+    println!("{:?}", serde_json::to_string(&proof));
+
     Ed25519SelfProveableSystem::verify_proof(&verifier_config, &proof).unwrap();
 }

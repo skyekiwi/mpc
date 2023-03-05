@@ -19,7 +19,7 @@ async fn main() {
     client
         .bootstrap_node(
             None, 
-            "/ip4/0.0.0.0/tcp/2620/ws".to_string(), 
+            "/ip4/10.0.0.3/tcp/2620/ws".to_string(), 
             "mpc-storage-db-fullnode1".to_string()
         ).await;
     
@@ -28,7 +28,7 @@ async fn main() {
     client
         .bootstrap_node(
             None, 
-            "/ip4/0.0.0.0/tcp/2621/ws".to_string(), 
+            "/ip4/10.0.0.3/tcp/2621/ws".to_string(), 
             "mpc-storage-db-fullnode2".to_string()
         ).await;
     
@@ -42,8 +42,8 @@ async fn main() {
         .open("./.env.test")
         .expect("able to open a file");
 
-    file.write_all(env_file_node1.as_bytes()).expect("abe to write");
-    file.write_all(env_file_node2.as_bytes()).expect("abe to write");
+    file.write_all(env_file_node1.as_bytes()).expect("able to write");
+    file.write_all(env_file_node2.as_bytes()).expect("able to write");
 
     loop {}
 }

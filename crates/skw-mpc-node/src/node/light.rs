@@ -98,19 +98,18 @@ pub async fn light_node_event_loop(
                         sign_fianlize_partial_signature_outgoing_sender,
                     );
 
-
                     loop {
                         futures::select! {
                             request = external_request_receiver.select_next_some() => {
                                 let payload_header = request.0;
                                 let auth_header = request.1;
                                 let maybe_local_key = request.2;
-                                let result_sender = request.3;
+                                let request_result_sender = request.3;
 
                                 match job_manager.init_new_job( auth_header, payload_header.clone()).await {
                                     Ok(_) => {
-                                        match assign_job(payload_header, maybe_local_key, result_sender, &mut job_manager).await {
-                                            Ok(_) => { }
+                                        match assign_job(payload_header, maybe_local_key, request_result_sender, &mut job_manager).await {
+                                            Ok(_) => {  } // job assignment success
                                             Err(e) => { 
                                                 log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 
                                                 result_sender_inside
@@ -119,9 +118,12 @@ pub async fn light_node_event_loop(
                                             }
                                         }
                                     }
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
+                                    Err(e) => {
+                                        log::error!("Catch Error on init_new_job {:?}", e);
+                                        request_result_sender
+                                            .send(Err(e.clone()))
+                                            .expect("request result sender not to be dropped");
+                                    }
                                 };
                             },
 

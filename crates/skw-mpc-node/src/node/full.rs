@@ -124,6 +124,7 @@ pub async fn full_node_event_loop(
                                 // For StartJob Swarm Request - sometimes the sender is not 100% correct
                                 // Just in case - we filter out request address to ourselves
                                 // TODO: To be removed in future
+                                log::debug!("New job assignment");
                                 if payload_header.sender != local_peer_id {
                                     let (inner_result_sender, inner_result_receiver) = oneshot::channel();
                                     match assign_job(payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
