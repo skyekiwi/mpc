@@ -1,9 +1,9 @@
-use std::env;
-use serde_json::json;
+// use std::env;
+// use serde_json::json;
 
 use skw_mpc_auth::types::CODE_LEN;
 
-pub async fn send_auth_code_to_email(receiver_email: &str, auth_code: &[u8; CODE_LEN]) {
+pub async fn send_auth_code_to_email(_receiver_email: &str, auth_code: &[u8; CODE_LEN]) {
 	println!("{:?}", auth_code);
 
 

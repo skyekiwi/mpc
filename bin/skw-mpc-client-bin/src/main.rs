@@ -53,11 +53,15 @@ async fn main() {
 
     let mut file = fs::OpenOptions::new()
         .append(true)
-        .open("./.env.test")
+        .open("./.env.peers")
         .expect("able to open a file");
 
     file.write_all(env_file_node1.as_bytes()).expect("able to write");
     file.write_all(env_file_node2.as_bytes()).expect("able to write");
     
+    std::env::set_var("LIGHT_NODE_ID", peer_id.to_string());
+    std::env::set_var("CLIENT_NODE_ID", local_peer_id.to_string());
+
+    log::info!("Init done. PeerIds has been written to .env.peers");
     loop {}
 }

@@ -31,6 +31,6 @@ crates/skw-mpc-wasm/dist/
 crates/skw-mpc-wasm/pkg/
 wasm-bindgen
 
-peer_ids
+.env.peers
 
 .bin

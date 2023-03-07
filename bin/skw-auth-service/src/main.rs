@@ -2,7 +2,7 @@ use skw_auth_service::{
 	ServerState,
 	routes::email::{email_auth_init, email_auth_validate},
 	routes::ga::{ga_auth_init, ga_auth_validate},
-	routes::oauth::oauth_auth_validate,
+	routes::{oauth::oauth_auth_validate, misc::peer_ids},
 	routes::usage::{usage_link, usage_validate}, shutdown_db
 };
 use skw_mpc_storage::{run_db_server, default_mpc_storage_opt};
@@ -44,6 +44,7 @@ async fn main() {
 		Ok(res)
 	}));
 
+	app.at("/info/peerid").get(peer_ids);
     app.at("/auth/email/init").post(email_auth_init);
 	app.at("/auth/email/validate").post(email_auth_validate);
 

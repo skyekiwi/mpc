@@ -1,7 +1,7 @@
 // Copyright 2021 @skyekiwi authors & contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-const execSync = require('./execSync.cjs');
+const fs = require('fs');
 const { secureGenerateRandomKey } = require('@skyekiwi/crypto');
 const util = require("@skyekiwi/util");
 const tweetnacl = require("tweetnacl");
@@ -17,14 +17,13 @@ function genEnv() {
 
     const clientSecret = secureGenerateRandomKey();
 
-    console.log("1. .env skw-auth-service");
-    console.log(`CLIENT_OAUTH_SECRET = ${util.u8aToHex(clientSecret)}`);
-    console.log(`OWNERSHIP_PROOF_KEY = ${util.u8aToHex(ownershipProofKey)}`);
-    console.log(`OWNERSHIP_VERIFY_KEY = ${util.u8aToHex(ownershipPublicKey)}`);
-    console.log(`USAGE_CERT_KEY = ${util.u8aToHex(usageCertKey)}`);
-    console.log(`USAGE_VERIFY_KEY = ${util.u8aToHex(usageCertPublicKey)}`);
-
-    console.log("3. .env for client-side")
+    fs.writeFileSync('./.env', `CLIENT_OAUTH_SECRET = ${util.u8aToHex(clientSecret)} \n`, {flag: 'a'});
+    fs.writeFileSync('./.env', `OWNERSHIP_PROOF_KEY = ${util.u8aToHex(ownershipProofKey)} \n`, {flag: 'a'});
+    fs.writeFileSync('./.env', `OWNERSHIP_VERIFY_KEY = ${util.u8aToHex(ownershipPublicKey)} \n`, {flag: 'a'});
+    fs.writeFileSync('./.env', `USAGE_CERT_KEY = ${util.u8aToHex(usageCertKey)} \n`, {flag: 'a'});
+    fs.writeFileSync('./.env', `USAGE_VERIFY_KEY = ${util.u8aToHex(usageCertPublicKey)} \n`, {flag: 'a'});
+    
+    console.log(".env for client-side")
     console.log(`NEXTAUTH_SECRET = ${util.u8aToHex(clientSecret)}`);
 }
 

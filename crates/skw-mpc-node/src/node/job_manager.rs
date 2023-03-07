@@ -180,6 +180,8 @@ impl<'node> JobManager<'node> {
                 .try_into().unwrap();
             
             let mut peers_index = Vec::<u16>::new();
+
+            // println!("{:?} {:?} {:?}", keygen_peers, local_peer_id, new_header.peers);
             for current_peer in new_header.peers.iter() {
                 let peer_index = keygen_peers.iter()
                     .position(|p| p.0.clone() == current_peer.0)
