@@ -30,14 +30,15 @@ async fn main() {
 
 	app.with(
 		CorsMiddleware::new()
-		.allow_methods("POST".parse::<HeaderValue>().unwrap())
+		.allow_methods("GET, POST, OPTIONS".parse::<HeaderValue>().unwrap())
 		.allow_origin(Origin::from("*"))
 		.allow_credentials(false)
 	);
 	app.with(After(|mut res: Response | async {
 		if let Some(err) = res.error() {
 			let msg = format!("Error: {:?}", err);
-			res.set_status(StatusCode::InternalServerError);
+			log::error!("Req Error {msg}");
+			res.set_status(StatusCode::Ok);
 			res.set_body(msg);
 		}
 

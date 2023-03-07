@@ -19,7 +19,7 @@ async fn main() {
     client
         .bootstrap_node(
             None, 
-            "/ip4/10.0.0.3/tcp/2620/ws".to_string(), 
+            format!("/ip4/{}/tcp/2620/ws", LISTEN_ADDR), 
             "mpc-storage-db-fullnode1".to_string()
         ).await;
     
@@ -28,7 +28,7 @@ async fn main() {
     client
         .bootstrap_node(
             None, 
-            "/ip4/10.0.0.3/tcp/2621/ws".to_string(), 
+            format!("/ip4/{}/tcp/2621/ws", LISTEN_ADDR),
             "mpc-storage-db-fullnode2".to_string()
         ).await;
     

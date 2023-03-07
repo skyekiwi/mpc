@@ -11,6 +11,8 @@ use skw_mpc_node::{
     node::{NodeClient, light_node_event_loop},
 };
 
+const LISTEN_ADDR: &str = "0.0.0.0";
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
@@ -22,7 +24,7 @@ async fn main() {
     let mut light_client_node_res = light_node_client
     .bootstrap_node(
         None,
-        "/ip4/10.0.0.3/tcp/2622/ws".to_string(),
+        format!("/ip4/{}/tcp/2622/ws", LISTEN_ADDR),
         "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
     ).await;
 
@@ -44,7 +46,7 @@ async fn main() {
     async_executor(event_loop.run());
 
     client
-        .start_listening("/ip4/10.0.0.3/tcp/2619/ws".parse().expect("multiaddr should be valid"))
+        .start_listening(format!("/ip4/{}/tcp/2619/ws", LISTEN_ADDR).parse().expect("multiaddr should be valid"))
         .await
         .unwrap();
 
