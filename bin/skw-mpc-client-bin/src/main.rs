@@ -46,7 +46,7 @@ async fn main() {
     async_executor(event_loop.run());
 
     client
-        .start_listening(format!("/ip4/{}/tcp/2619/wss", LISTEN_ADDR).parse().expect("multiaddr should be valid"))
+        .start_listening(format!("/ip4/{}/tcp/2619/ws", LISTEN_ADDR).parse().expect("multiaddr should be valid"))
         .await
         .unwrap();
 
