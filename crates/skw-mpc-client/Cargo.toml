@@ -24,6 +24,7 @@ thiserror = { version = "1.0.23", default-features = false }
 serde = { version = "1.0", features = ["derive"], default-features = false }
 skw-mpc-payload = { path = "../skw-mpc-payload" }
 skw-mpc-node = { path = "../skw-mpc-node", default-features = false, optional = true }
+rcgen = { version = "0.10.0", optional = true }
 
 libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux"]}
 
@@ -34,7 +35,7 @@ getrandom = { version = "0.2", default-features = false, optional = true}
 [features]
 default = ["light-node", "tcp-ws-transport"]
 wasm-transport = ["wasm-bindgen-futures", "libp2p/wasm-ext", "libp2p/wasm-bindgen", "getrandom/js", "libp2p/wasm-ext-websocket"]
-tcp-ws-transport = ["libp2p/tcp", "libp2p/tokio", "tokio/rt-multi-thread", "libp2p/websocket"]
+tcp-ws-transport = ["libp2p/tcp", "libp2p/tokio", "tokio/rt-multi-thread", "libp2p/websocket", "rcgen"]
 
 full-node = ["skw-mpc-node/light-node", "skw-mpc-node/tcp-ws-transport"]
 light-node = []

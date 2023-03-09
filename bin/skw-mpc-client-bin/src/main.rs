@@ -11,7 +11,7 @@ use skw_mpc_node::{
     node::{NodeClient, light_node_event_loop},
 };
 
-const LISTEN_ADDR: &str = "143.198.142.119";
+const LISTEN_ADDR: &str = "0.0.0.0";
 
 #[tokio::main]
 async fn main() {
@@ -46,7 +46,7 @@ async fn main() {
     async_executor(event_loop.run());
 
     client
-        .start_listening(format!("/ip4/{}/tcp/2619/ws", LISTEN_ADDR).parse().expect("multiaddr should be valid"))
+        .start_listening(format!("/ip4/{}/tcp/2619/wss", LISTEN_ADDR).parse().expect("multiaddr should be valid"))
         .await
         .unwrap();
 

@@ -5097,6 +5097,7 @@ dependencies = [
  "libp2p",
  "log",
  "pretty_env_logger",
+ "rcgen 0.10.0",
  "serde",
  "serde_json",
  "skw-mpc-node",

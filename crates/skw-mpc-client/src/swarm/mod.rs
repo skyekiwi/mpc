@@ -24,6 +24,7 @@ pub use behavior::{MpcP2pRequest, MpcP2pResponse};
 #[cfg(feature = "tcp-ws-transport")]
 fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
     use libp2p::{websocket, tcp};
+    use rcgen::generate_simple_self_signed;
     let local_peer_id = PeerId::from(local_key.public());
 
     let transport = {
@@ -42,7 +43,12 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
                 .map_outbound(core::muxing::StreamMuxerBox::new)
         };
 
+        let rcgen_cert = generate_simple_self_signed(vec!["c.mpc.choko.app".to_string()]).unwrap();
+        let priv_key = websocket::tls::PrivateKey::new(rcgen_cert.serialize_private_key_der());
+        let cert = websocket::tls::Certificate::new(rcgen_cert.serialize_der().unwrap());
+
         websocket::WsConfig::new(tcp::tokio::Transport::new(tcp::Config::default().nodelay(true)))
+            .set_tls_config(websocket::tls::Config::new(priv_key, vec![cert]).unwrap())
             .upgrade(libp2p::core::upgrade::Version::V1)
             .authenticate(
                 noise::NoiseAuthenticated::xx(&local_key)
