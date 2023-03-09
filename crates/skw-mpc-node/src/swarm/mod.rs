@@ -26,7 +26,7 @@ pub use swarm_light::new_light_swarm_node;
 
 #[cfg(feature = "tcp-ws-transport")]
 fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
-    use libp2p::{websocket, tcp};
+    use libp2p::{websocket, tcp, dns};
     let local_peer_id = PeerId::from(local_key.public());
 
     let transport = {
@@ -45,7 +45,9 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
                 .map_outbound(core::muxing::StreamMuxerBox::new)
         };
 
-        websocket::WsConfig::new(tcp::tokio::Transport::new(tcp::Config::default().nodelay(true)))
+        websocket::WsConfig::new(dns::TokioDnsConfig::system(
+            tcp::tokio::Transport::new(tcp::Config::default()),
+        ).unwrap())
             .upgrade(libp2p::core::upgrade::Version::V1)
             .authenticate(
                 noise::NoiseAuthenticated::xx(&local_key)
