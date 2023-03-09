@@ -17,7 +17,9 @@ function genEnv() {
 
     const clientSecret = secureGenerateRandomKey();
 
-    fs.writeFileSync('./.env', `CLIENT_OAUTH_SECRET = ${util.u8aToHex(clientSecret)} \n`, {flag: 'a'});
+    if (!fs.existsSync('./env.c')) {
+        fs.writeFileSync('./.env.c', `CLIENT_OAUTH_SECRET = ${util.u8aToHex(clientSecret)} \n`, {flag: 'w'});
+    }
     fs.writeFileSync('./.env', `OWNERSHIP_PROOF_KEY = ${util.u8aToHex(ownershipProofKey)} \n`, {flag: 'a'});
     fs.writeFileSync('./.env', `OWNERSHIP_VERIFY_KEY = ${util.u8aToHex(ownershipPublicKey)} \n`, {flag: 'a'});
     fs.writeFileSync('./.env', `USAGE_CERT_KEY = ${util.u8aToHex(usageCertKey)} \n`, {flag: 'a'});

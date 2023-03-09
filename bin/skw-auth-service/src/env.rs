@@ -24,6 +24,7 @@ impl EnvironmentVar {
             .try_into()
             .expect("valid length");
 
+        dotenv::from_path("./.env.c").expect(".env.c to exist");
         let client_oauth_secret = dotenv::var("CLIENT_OAUTH_SECRET")
             .expect("CLIENT_OAUTH_SECRET in env");
         Self {
