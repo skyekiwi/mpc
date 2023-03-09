@@ -23,6 +23,8 @@ pub use behavior::{MpcP2pRequest, MpcP2pResponse};
 
 #[cfg(feature = "tcp-ws-transport")]
 fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
+    use std::time::Duration;
+
     use libp2p::{websocket, tcp, dns};
     let local_peer_id = PeerId::from(local_key.public());
 
@@ -51,6 +53,8 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
                     .expect("Signing libp2p-noise static DH keypair failed."),
             )
             .multiplex(multiplexing_config)
+            .timeout(Duration::from_secs(10))
+
             .boxed()
     };
 
