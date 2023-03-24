@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use skw_mpc_auth::{SelfProveableSystem, Ed25519SelfProveableSystem, Ed25519Proof};
 use serde::{Serialize, Deserialize};
 use crate::types::{CryptoHash};
-use crate::env::EnvironmentVar;
+use crate::env::{EnvironmentVar, TestEnvironmentVar};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthHeader {
@@ -49,6 +49,24 @@ impl AuthHeader {
     pub fn key_shard_id(&self) -> CryptoHash {
         self.primary.payload().clone()
     }
+
+    /// For testing only
+    pub fn test_auth_header() -> Self {
+        let prover_key = TestEnvironmentVar::load().usage_prover_key;
+
+        let primary = Ed25519SelfProveableSystem::generate_proof(
+            &prover_key.into(), [0u8; 32]
+        ).unwrap();
+
+        let secondary = Ed25519SelfProveableSystem::generate_proof(
+            &prover_key.into(), [1u8; 32]
+        ).unwrap();
+
+        Self {
+            primary, secondary, additional: None
+        }
+    }
+
 }
 
 

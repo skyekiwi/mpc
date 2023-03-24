@@ -173,6 +173,8 @@ pub async fn full_node_event_loop(
                                     Ok(outcome) => {
                                         match outcome {
                                             ClientOutcome::KeyGen { local_key, key_shard_id, .. } => {
+                                                println!("Writing Key {:?}", decode_key(&local_key));
+
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
                                                     key: key_shard_id, 
@@ -197,6 +199,9 @@ pub async fn full_node_event_loop(
                                                 // log::info!("Sign Result {:?} {:?} {:?} ", peer_id, payload_id, decode_signature(&sig));
                                             },
                                             ClientOutcome::KeyRefresh { new_key, key_shard_id, .. } => {
+
+                                                println!("Writing New Key {:?}", decode_key(&new_key));
+
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
                                                     key: key_shard_id, 

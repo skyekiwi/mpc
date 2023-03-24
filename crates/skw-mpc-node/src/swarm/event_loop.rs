@@ -10,6 +10,7 @@ use libp2p::{
 use futures::{StreamExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
+#[cfg(feature = "full-node")]
 use skw_mpc_payload::CryptoHash;
 
 #[cfg(feature = "full-node")]

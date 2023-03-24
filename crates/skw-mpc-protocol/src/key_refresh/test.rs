@@ -151,19 +151,19 @@ mod tests {
             Ok(())
         }
 
-        let t = 2;
-        let n = 5;
+        let t = 1;
+        let n = 3;
 
         let all_keys = simulate_keygen(t, n);
 
         // remove the first two key - the client side key
-        let mut keys = all_keys[2..5].to_vec();
+        let mut keys = all_keys[1..].to_vec();
 
         // replace client key 
-        simulate_replace(&mut keys, &[1, 2], t, n).unwrap();
+        simulate_replace(&mut keys, &[1], t, n).unwrap();
 
         // use client key and FNode1 key
-        let offline_sign = simulate_offline_stage(keys, &[1, 2, 3]);
+        let offline_sign = simulate_offline_stage(keys, &[1, 2]);
         simulate_signing(offline_sign, b"ZenGo");
     }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use futures::{channel::{mpsc, oneshot}, StreamExt, TryStreamExt};
 use libp2p::{PeerId};
@@ -201,7 +201,7 @@ impl<'node> JobManager<'node> {
                 .try_into().unwrap();
 
             // TODO: we hardcode the node to call to peers
-            let peers_index = [0u16, 1u16]; 
+            let peers_index = [1u16, 2u16]; 
 
             match sign::OfflineStage::new(
                 local_index, peers_index.to_vec(), local_key
@@ -332,6 +332,8 @@ impl<'node> JobManager<'node> {
                             })
                             .collect::<Vec<JoinMessage>>();
 
+                            println!("Join Msgs {:?}", join_msgs);
+
                             match RefreshMessage::replace(&join_msgs, &mut local_key) {
                                 // 1. build refresh message 
                                 Ok((refresh_msg, decryption_key)) => {
@@ -341,22 +343,29 @@ impl<'node> JobManager<'node> {
                                             payload_header: new_header.clone(),
                                             body: Msg {
                                                 sender: local_index, receiver: None,
-                                                body: refresh_msg
+                                                body: refresh_msg.clone()
                                             }
                                         })
                                         .expect("refresh_msg_outgoing channel should not be dropped");
 
+                                    println!("Refresh Msg Broadcaste");
+
                                     // 3. collect RefreshMessage
                                     match incoming_refresh_msg_receiver
-                                        .take(new_header.clone().peers.len() - 1)
+                                        .take(new_header.clone().peers.len() - 1 - 1)
                                         .try_collect::<Vec<Payload<RefreshMessageMsg>>>()
-                                        .await {
+                                        .await 
+                                    {
 
                                         Ok(payload_refresh_msgs) => {
-                                            let refresh_msgs = payload_refresh_msgs.iter().map(|p| {
+                                            let mut refresh_msgs = payload_refresh_msgs.iter().map(|p| {
                                                 p.clone().body.body
                                             })
                                             .collect::<Vec<RefreshMessage>>();
+
+                                            // push the refresh msg of ourselves
+                                            refresh_msgs.push(refresh_msg);
+                                            println!("Step 3 complete {:?}", refresh_msgs);
 
                                             match RefreshMessage::collect(
                                                 &refresh_msgs,
@@ -394,9 +403,7 @@ impl<'node> JobManager<'node> {
                             .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
                             .expect("result_receiver not to be dropped")
                     }
-
                     // return the new localKey
-
                 },
 
                 None => {
@@ -435,7 +442,7 @@ impl<'node> JobManager<'node> {
                                     &refresh_msgs, 
                                     dk, 
                                     &[join_message.clone()], 
-                                    t, n
+                                    t.saturating_sub(1), n
                                 ) {
                                     Ok(k) => result_sender.send(Ok(ClientOutcome::KeyRefresh { 
                                             peer_id: local_peer_id, 
@@ -478,7 +485,7 @@ impl<'node> JobManager<'node> {
     pub async fn handle_outgoing<M>(&mut self, 
         payload: Payload<Msg<M>>,
     ) -> Result<(), MpcNodeError>
-        where M: Clone + Serialize + DeserializeOwned
+        where M: Clone + Serialize + DeserializeOwned + Debug
     {
         let local_peer_id = self.local_peer_id.clone();
 
@@ -509,6 +516,8 @@ impl<'node> JobManager<'node> {
             },
             // this is a broadcast message
             None => {
+                println!("{:?}", payload);
+
                 for peer in payload.clone().payload_header.peers {
                     if peer.0.to_string() != self.local_peer_id.to_string() {
                         self.client

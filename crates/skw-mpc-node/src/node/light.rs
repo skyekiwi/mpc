@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use futures::{channel::{oneshot, mpsc}, StreamExt, SinkExt};
 use libp2p::PeerId;
-use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader};
+use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader, CryptoHash};
 
 use crate::{
     async_executor,
@@ -18,6 +18,7 @@ use crate::{
 use super::job_manager::JobManager;
 
 async fn assign_job(
+    key_shard_id: CryptoHash,
     payload_header: PayloadHeader, 
     maybe_local_key: Option<Vec<u8>>,
     result_sender: oneshot::Sender<Result< ClientOutcome, MpcNodeError>>,
@@ -25,20 +26,22 @@ async fn assign_job(
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
         PayloadType::KeyGen => {
-            job_manager.keygen_accept_new_job( payload_header.clone(), result_sender );
+            job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
         },
-        PayloadType::SignOffline { message, keygen_peers, .. } => {
+        PayloadType::SignOffline { message, .. } => {
             if maybe_local_key.is_none() {
                 return Err(MpcNodeError::NodeError(NodeError::LocalKeyMissing));
             }        
             job_manager.sign_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
                 decode_key( &maybe_local_key.unwrap() )?,
-                keygen_peers, message, result_sender
+                message, result_sender
             ).await;
         },
         PayloadType::KeyRefresh { .. } => { 
             job_manager.key_refresh_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
                 None,
                 result_sender
@@ -119,9 +122,12 @@ pub async fn light_node_event_loop(
                                 let maybe_local_key = request.2;
                                 let request_result_sender = request.3;
 
-                                match job_manager.init_new_job( auth_header, payload_header.clone()).await {
+                                match job_manager.init_new_job( auth_header.clone(), payload_header.clone()).await {
                                     Ok(_) => {
-                                        match assign_job(payload_header, maybe_local_key, request_result_sender, &mut job_manager).await {
+                                        match assign_job( 
+                                            auth_header.key_shard_id(), 
+                                            payload_header, maybe_local_key, request_result_sender, &mut job_manager
+                                        ).await {
                                             Ok(_) => {  } // job assignment success
                                             Err(e) => { 
                                                 log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 

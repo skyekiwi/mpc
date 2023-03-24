@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 // Everything here can be broadcasted
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RefreshMessage {
     pub(crate) party_index: u16,
     pdl_proof_vec: Vec<PDLwSlackProof<Secp256k1>>,
