@@ -13,7 +13,7 @@ use crate::{
     swarm::{ new_full_swarm_node }, 
     serde_support::{decode_key, decode_signature}, 
     node::client_request::ClientRequest,
-    node::client_outcome::ClientOutcome,
+    node::client_outcome::ClientOutcome, wire_outgoing_pipe,
 };
 
 use super::job_manager::JobManager;
@@ -150,48 +150,11 @@ pub async fn full_node_event_loop(
                                 }
                             },
 
-                            payload = keygen_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_offline_outgoing_receiver.select_next_some()  => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-
-                            payload = key_refresh_join_message_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-
-                            payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
+                            payload = keygen_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_offline_outgoing_receiver.select_next_some()  => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_join_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
 
                             raw_payload = swarm_message_receiver.select_next_some() => {
                                 match job_manager.handle_incoming(&raw_payload).await {

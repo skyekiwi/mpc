@@ -19,3 +19,15 @@ pub use light::light_node_event_loop;
 pub use client_request::ClientRequest;
 pub use client::NodeClient;
 pub use client_outcome::ClientOutcome;
+
+#[macro_export]
+macro_rules! wire_outgoing_pipe {
+    ($payload: expr, $jm: expr, $res: expr) => {
+        match $jm.handle_outgoing($payload).await {
+            Ok(_) => {},
+            Err(e) => $res
+                .send(Err(e)).await
+                .expect("bootstrapping result sender not to be dropped")
+        }
+    };
+}
