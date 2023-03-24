@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use futures::{channel::{mpsc, oneshot}, StreamExt, TryStreamExt};
-use libp2p::{PeerId, Multiaddr};
+use libp2p::{PeerId};
 use serde::{Serialize, de::DeserializeOwned};
 
 use skw_crypto_curv::elliptic::curves::secp256_k1::Secp256k1;
@@ -15,7 +15,7 @@ use crate::{
     async_executor,
     swarm::{MpcSwarmClient, MpcP2pRequest, MpcP2pResponse}, 
     serde_support::{decode_payload, encode_payload, encode_key, encode_signature}, 
-    error::{MpcNodeError, MpcProtocolError, NodeError}, 
+    error::{MpcNodeError, MpcProtocolError, NodeError}, wire_incoming_pipe, 
 };
 
 use crate::node::client_outcome::ClientOutcome;
@@ -115,7 +115,8 @@ impl<'node> JobManager<'node> {
         Ok(())
     }
 
-    pub fn keygen_accept_new_job(&mut self, 
+    pub fn keygen_accept_new_job(&mut self,
+        key_shard_id: CryptoHash,
         new_header: PayloadHeader,
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
     ) {
@@ -150,6 +151,7 @@ impl<'node> JobManager<'node> {
                             .send(Ok(ClientOutcome::KeyGen {
                                 peer_id: local_peer_id,
                                 payload_id: new_header.payload_id,
+                                key_shard_id,
                                 local_key: encode_key(&local_key)
                             }))
                             .expect("result_receiver not to be dropped")
@@ -171,13 +173,11 @@ impl<'node> JobManager<'node> {
     }
 
     pub async fn sign_accept_new_job(&mut self, 
+        key_shard_id: CryptoHash,
         new_header: PayloadHeader, 
-        
-        local_key: LocalKey<Secp256k1>,
-        keygen_peers: Vec<(PeerId, Multiaddr)>,
 
+        local_key: LocalKey<Secp256k1>,
         message: CryptoHash,
-        
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
     ) {
         let job_id = new_header.clone().payload_id;
@@ -194,25 +194,17 @@ impl<'node> JobManager<'node> {
 
         // spin up the thread to handle these tasks
         async_executor(async move {
-            let local_index: u16 = keygen_peers.iter()
+            let local_index: u16 = new_header.clone().peers.iter()
                 .position(|p| p.0.clone() == local_peer_id)
                 .unwrap()
                 .saturating_add(1)
                 .try_into().unwrap();
-            
-            let mut peers_index = Vec::<u16>::new();
 
-            for current_peer in new_header.peers.iter() {
-                let peer_index = keygen_peers.iter()
-                    .position(|p| p.0.clone() == current_peer.0)
-                    .unwrap()
-                    .saturating_add(1)
-                    .try_into().unwrap();
-                peers_index.push(peer_index);
-            }
+            // TODO: we hardcode the node to call to peers
+            let peers_index = [0u16, 1u16]; 
 
             match sign::OfflineStage::new(
-                local_index, peers_index, local_key
+                local_index, peers_index.to_vec(), local_key
             ) {
                 Ok(offline_sign_sm) => {
                     match AsyncProtocol::new(offline_sign_sm, 
@@ -258,6 +250,7 @@ impl<'node> JobManager<'node> {
                                                 Ok(sig) => {
                                                     result_sender
                                                         .send(Ok(ClientOutcome::Sign {
+                                                            key_shard_id,
                                                             peer_id: local_peer_id,
                                                             payload_id: new_header.payload_id,
                                                             sig: encode_signature(&sig),
@@ -295,7 +288,9 @@ impl<'node> JobManager<'node> {
 
 
     pub async fn key_refresh_accept_new_job(&mut self, 
+        key_shard_id: CryptoHash,
         new_header: PayloadHeader,
+        
         maybe_local_key: Option<LocalKey<Secp256k1>>,
 
         result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
@@ -374,6 +369,7 @@ impl<'node> JobManager<'node> {
                                                     .send(Ok(ClientOutcome::KeyRefresh { 
                                                         peer_id: local_peer_id, 
                                                         payload_id: new_header.payload_id, 
+                                                        key_shard_id,
                                                         new_key: encode_key(&local_key) 
                                                     }))
                                                     .expect("result_receiver not to be dropped"),
@@ -443,6 +439,7 @@ impl<'node> JobManager<'node> {
                                 ) {
                                     Ok(k) => result_sender.send(Ok(ClientOutcome::KeyRefresh { 
                                             peer_id: local_peer_id, 
+                                            key_shard_id,
                                             payload_id: new_header.clone().payload_id, 
                                             new_key: encode_key(&k)
                                         }))
@@ -465,88 +462,18 @@ impl<'node> JobManager<'node> {
         raw_payload: &[u8],
     ) -> Result<(), MpcNodeError> {
         // Note: currently - we try to guess the type of the payload ... there might be another way
-        let maybe_payload_keygen: Result<Payload<KeyGenMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
-        
-        // signing related
-        let maybe_payload_sign_offline: Result<Payload<SignOfflineMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
-        let maybe_payload_partial_sig: Result<Payload<PartialSignatureMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
+        let maybe_keygen = wire_incoming_pipe!(KeyGenMessage, raw_payload, self.keygen_protocol_incoming_channel);
+        let maybe_sign_offline = wire_incoming_pipe!(SignOfflineMessage, raw_payload, self.sign_offline_protocol_incoming_channel);
+        let maybe_partial_sig = wire_incoming_pipe!(PartialSignatureMessage, raw_payload, self.sign_fianlize_partial_signature_incoming_channel);
+        let maybe_join_msg = wire_incoming_pipe!(JoinMessageMsg, raw_payload, self.key_refresh_join_message_incoming_channel);
+        let maybe_refresh_msg = wire_incoming_pipe!(RefreshMessageMsg, raw_payload, self.key_refresh_refresh_message_incoming_channel);
 
-        // key refresh related
-        let maybe_payload_join_msg: Result<Payload<JoinMessageMsg>, MpcNodeError> = decode_payload(raw_payload.clone());
-        let maybe_payload_refresh_msg: Result<Payload<RefreshMessageMsg>, MpcNodeError> = decode_payload(raw_payload.clone());
-
-        if maybe_payload_keygen.is_ok() {
-            let payload = maybe_payload_keygen.unwrap();
-            let job_id = &payload.payload_header.payload_id;
-            let channel = self.keygen_protocol_incoming_channel.get_mut(job_id);
-            match channel {
-                Some(pipe) => {
-                    pipe.try_send(Ok(payload))
-                        .expect("protocol_incoming_channels should not be dropped");
-                },
-                None => {
-                    panic!("unknown job");
-                }
-            }
-        } else if maybe_payload_sign_offline.is_ok() {
-            let payload = maybe_payload_sign_offline.unwrap();
-            let job_id = &payload.payload_header.payload_id;
-            let channel = self.sign_offline_protocol_incoming_channel.get_mut(job_id);
-            match channel {
-                Some(pipe) => {
-                    pipe.try_send(Ok(payload))
-                        .expect("protocol_incoming_channels should not be dropped");
-                },
-                None => {
-                    panic!("unknown job");
-                }
-            }
-        } else if maybe_payload_partial_sig.is_ok() {
-            let payload = maybe_payload_partial_sig.unwrap();
-            let job_id = &payload.payload_header.payload_id;
-            let channel = self.sign_fianlize_partial_signature_incoming_channel.get_mut(job_id);
-            match channel {
-                Some(pipe) => {
-                    pipe.try_send(Ok(payload))
-                        .expect("protocol_incoming_channels should not be dropped");
-                },
-                None => {
-                    panic!("unknown job");
-                }
-            }
-        } else if maybe_payload_join_msg.is_ok() {
-            let payload = maybe_payload_join_msg.unwrap();
-            let job_id = &payload.payload_header.payload_id;
-            let channel = self.key_refresh_join_message_incoming_channel.get_mut(job_id);
-            match channel {
-                Some(pipe) => {
-                    pipe.try_send(Ok(payload))
-                        .expect("protocol_incoming_channels should not be dropped");
-                },
-                None => {
-                    panic!("unknown job");
-                }
-            }
-        } else if maybe_payload_refresh_msg.is_ok() {
-            let payload = maybe_payload_refresh_msg.unwrap();
-            let job_id = &payload.payload_header.payload_id;
-            let channel = self.key_refresh_refresh_message_incoming_channel.get_mut(job_id);
-            match channel {
-                Some(pipe) => {
-                    pipe.try_send(Ok(payload))
-                        .expect("protocol_incoming_channels should not be dropped");
-                },
-                None => {
-                    panic!("unknown job");
-                }
-            }
-        }else {
-            return Err(MpcNodeError::NodeError(NodeError::InputUnknown));
+        if maybe_keygen || maybe_sign_offline || maybe_partial_sig || maybe_join_msg || maybe_refresh_msg {
+            Ok(())
+        } else {
+            Err(MpcNodeError::NodeError(NodeError::InputUnknown))
         }
-
-        Ok(())
     }
-
 
     pub async fn handle_outgoing<M>(&mut self, 
         payload: Payload<Msg<M>>,

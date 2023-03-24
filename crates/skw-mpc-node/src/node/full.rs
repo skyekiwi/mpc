@@ -11,7 +11,7 @@ use crate::{
     async_executor,
     error::MpcNodeError, 
     swarm::{ new_full_swarm_node }, 
-    serde_support::{decode_key, decode_signature}, 
+    serde_support::{decode_key}, 
     node::client_request::ClientRequest,
     node::client_outcome::ClientOutcome, wire_outgoing_pipe,
 };
@@ -39,6 +39,7 @@ async fn get_local_key(db_in: &mut mpsc::Sender<DBOpIn>, keygen_id: CryptoHash) 
 }
 
 async fn assign_job(
+    key_shard_id: CryptoHash,
     payload_header: PayloadHeader, 
     result_sender: oneshot::Sender<Result< ClientOutcome, MpcNodeError>>,
     db_in_channel: &mut mpsc::Sender<DBOpIn>,
@@ -46,19 +47,21 @@ async fn assign_job(
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
         PayloadType::KeyGen => {
-            job_manager.keygen_accept_new_job( payload_header.clone(), result_sender );
+            job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
         },
-        PayloadType::SignOffline { message, keygen_id, keygen_peers }=> {
+        PayloadType::SignOffline { message }=> {
             job_manager.sign_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
-                get_local_key(db_in_channel, keygen_id).await?, 
-                keygen_peers, message, result_sender
+                get_local_key(db_in_channel, key_shard_id).await?, 
+                message, result_sender
             ).await;
         },
-        PayloadType::KeyRefresh { keygen_id } => { 
+        PayloadType::KeyRefresh => { 
             job_manager.key_refresh_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
-                Some(get_local_key(db_in_channel, keygen_id).await?), // on fullnode - we should always have the key
+                Some(get_local_key(db_in_channel, key_shard_id).await?), // on fullnode - we should always have the key
                 result_sender
             ).await;
         },
@@ -131,14 +134,15 @@ pub async fn full_node_event_loop(
 
                     loop {
                         futures::select! {
-                            payload_header = job_assignment_receiver.select_next_some() => {
+                            (payload_header, key_shard_id) = job_assignment_receiver.select_next_some() => {
+                                log::debug!("New job assignment for credential {:?}", key_shard_id);
+
+                                // TODO: To be removed in future
                                 // For StartJob Swarm Request - sometimes the sender is not 100% correct
                                 // Just in case - we filter out request address to ourselves
-                                // TODO: To be removed in future
-                                log::debug!("New job assignment");
                                 if payload_header.sender != local_peer_id {
                                     let (inner_result_sender, inner_result_receiver) = oneshot::channel();
-                                    match assign_job(payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
+                                    match assign_job(key_shard_id, payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
                                         Ok(_) => { interal_results.push(inner_result_receiver); }
                                         Err(e) => { 
                                             log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 
@@ -155,7 +159,6 @@ pub async fn full_node_event_loop(
                             payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
                             payload = key_refresh_join_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
                             payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
-
                             raw_payload = swarm_message_receiver.select_next_some() => {
                                 match job_manager.handle_incoming(&raw_payload).await {
                                     Ok(_) => {},
@@ -169,10 +172,10 @@ pub async fn full_node_event_loop(
                                 match outcome.expect("internal result sender not to be dropped") {
                                     Ok(outcome) => {
                                         match outcome {
-                                            ClientOutcome::KeyGen { payload_id, local_key, .. } => {
+                                            ClientOutcome::KeyGen { local_key, key_shard_id, .. } => {
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
-                                                    key: payload_id, 
+                                                    key: key_shard_id, 
                                                     value: local_key, 
                                                     result_sender: db_res_sender
                                                 }).await.expect("DB must remain open");
@@ -189,13 +192,14 @@ pub async fn full_node_event_loop(
                                                     }
                                                 }
                                             },
-                                            ClientOutcome::Sign { peer_id, payload_id, sig } => {
-                                                log::info!("Sign Result {:?} {:?} {:?}", peer_id, payload_id, decode_signature(&sig));
+                                            ClientOutcome::Sign { .. } => {
+                                                // Nop for sign for fullnodes
+                                                // log::info!("Sign Result {:?} {:?} {:?} ", peer_id, payload_id, decode_signature(&sig));
                                             },
-                                            ClientOutcome::KeyRefresh { payload_id, new_key, .. } => {
+                                            ClientOutcome::KeyRefresh { new_key, key_shard_id, .. } => {
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
-                                                    key: payload_id, 
+                                                    key: key_shard_id, 
                                                     value: new_key, 
                                                     result_sender: db_res_sender
                                                 }).await.expect("DB must remain open");

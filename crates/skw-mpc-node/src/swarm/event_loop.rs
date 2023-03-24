@@ -10,6 +10,8 @@ use libp2p::{
 use futures::{StreamExt, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
+use skw_mpc_payload::CryptoHash;
+
 #[cfg(feature = "full-node")]
 use skw_mpc_payload::{PayloadHeader};
 
@@ -26,7 +28,7 @@ pub struct MpcSwarmEventLoop {
     swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
 
     #[cfg(feature = "full-node")]
-    swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
+    swarm_incoming_job_sender: mpsc::Sender <(PayloadHeader, CryptoHash)>,
 
     command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
 
@@ -44,7 +46,7 @@ impl MpcSwarmEventLoop {
         swarm_incoming_message_sender: mpsc::UnboundedSender< Vec<u8> >,
 
         #[cfg(feature = "full-node")]
-        swarm_incoming_job_sender: mpsc::Sender <PayloadHeader>,
+        swarm_incoming_job_sender: mpsc::Sender <(PayloadHeader, CryptoHash)>,
     
         command_receiver: mpsc::UnboundedReceiver<MpcSwarmCommand>,
         
@@ -194,7 +196,7 @@ impl MpcSwarmEventLoop {
                                         })
                                     {
                                         Ok(_) => self.swarm_incoming_job_sender
-                                            .send(job_header)
+                                            .send((job_header, auth_header.key_shard_id()))
                                             .await
                                             .expect("swarm_incoming_job_sender should not be dropped. qed."),
                                         Err(response) => {

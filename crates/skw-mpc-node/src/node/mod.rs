@@ -31,3 +31,31 @@ macro_rules! wire_outgoing_pipe {
         }
     };
 }
+
+#[macro_export]
+macro_rules! wire_incoming_pipe {
+    ($t: ty, $payload: expr, $channel: expr) => { 
+        {
+            let maybe_payload: Result<Payload<$t>, MpcNodeError> = decode_payload($payload.clone());
+
+            if maybe_payload.is_ok() {
+                let payload = maybe_payload.unwrap();
+                let job_id = &payload.payload_header.payload_id;
+                let channel = $channel.get_mut(job_id);
+                match channel {
+                    Some(pipe) => {
+                        pipe.try_send(Ok(payload))
+                            .expect("protocol_incoming_channels should not be dropped");
+                    },
+                    None => {
+                        panic!("unknown job");
+                    }
+                }
+
+                true
+            } else {
+                false
+            }
+        }
+    };
+}
