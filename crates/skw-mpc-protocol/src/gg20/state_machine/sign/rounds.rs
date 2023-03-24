@@ -410,7 +410,7 @@ impl Round4 {
         mut output: O,
     ) -> Result<Round5>
     where
-        O: Push<Msg<(RDash, Vec<PDLwSlackProof>)>>,
+        O: Push<Msg<(RDash, Vec<PDLwSlackProof<Secp256k1>>)>>,
     {
         let decom_vec: Vec<_> = decommit_round1.into_vec_including_me(self.phase1_decom.clone());
 
@@ -493,13 +493,13 @@ pub struct Round5 {
     sigma_i: Scalar<Secp256k1>,
     R: Point<Secp256k1>,
     R_dash: Point<Secp256k1>,
-    phase5_proofs_vec: Vec<PDLwSlackProof>,
+    phase5_proofs_vec: Vec<PDLwSlackProof<Secp256k1>>,
 }
 
 impl Round5 {
     pub fn proceed<O>(
         self,
-        input: BroadcastMsgs<(RDash, Vec<PDLwSlackProof>)>,
+        input: BroadcastMsgs<(RDash, Vec<PDLwSlackProof<Secp256k1>>)>,
         mut output: O,
     ) -> Result<Round6>
     where
@@ -561,7 +561,7 @@ impl Round5 {
         })
     }
 
-    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<(RDash, Vec<PDLwSlackProof>)>> {
+    pub fn expects_messages(i: u16, n: u16) -> Store<BroadcastMsgs<(RDash, Vec<PDLwSlackProof<Secp256k1>>)>> {
         containers::BroadcastMsgsStore::new(i, n)
     }
 
@@ -614,7 +614,7 @@ impl Round6 {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CompletedOfflineStage {
     i: u16,
     local_key: LocalKey<Secp256k1>,
@@ -627,6 +627,10 @@ pub struct CompletedOfflineStage {
 impl CompletedOfflineStage {
     pub fn public_key(&self) -> &Point<Secp256k1> {
         &self.local_key.y_sum_s
+    }
+
+    pub fn party_index(&self) -> u16 {
+        self.i
     }
 }
 

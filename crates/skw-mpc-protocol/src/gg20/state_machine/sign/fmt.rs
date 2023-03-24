@@ -1,3 +1,6 @@
+#![cfg(test)]
+#![allow(dead_code)]
+
 use std::fmt;
 
 use skw_round_based::containers::{BroadcastMsgsStore, MessageStore, P2PMsgsStore};

@@ -509,7 +509,7 @@ fn sign(
         .collect::<Vec<Point<Secp256k1>>>();
 
     // each party sends first message to all other parties
-    let mut phase5_proofs_vec: Vec<Vec<PDLwSlackProof>> = vec![Vec::new(); ttag];
+    let mut phase5_proofs_vec: Vec<Vec<PDLwSlackProof<Secp256k1>>> = vec![Vec::new(); ttag];
     for i in 0..ttag {
         for j in 0..ttag - 1 {
             let ind = if j < i { j } else { j + 1 };

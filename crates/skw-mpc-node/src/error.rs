@@ -50,6 +50,8 @@ pub enum MpcProtocolError {
     KeyGenError(String),
     #[error("MpcProtocolError: SignError {0}")]
     SignError(String),
+    #[error("MpcProtocolError: KeyRefreshError {0}")]
+    KeyRefreshError(String),
 }
 
 

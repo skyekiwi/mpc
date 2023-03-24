@@ -9,7 +9,7 @@ use skw_crypto_curv::{BigInt, arithmetic::Converter};
 
 use skw_mpc_payload::{CryptoHash, PayloadHeader, Payload, header::PayloadType};
 use skw_round_based::{async_runtime::AsyncProtocol, Msg};
-use skw_mpc_protocol::gg20::state_machine::{keygen::{self, LocalKey}, sign::{self, SignManual, PartialSignature}};
+use skw_mpc_protocol::{gg20::state_machine::{keygen::{self, LocalKey}, sign::{self, SignManual, PartialSignature}}, key_refresh::{JoinMessage, RefreshMessage}};
 
 use crate::{
     async_executor,
@@ -23,6 +23,8 @@ use crate::node::client_outcome::ClientOutcome;
 type KeyGenMessage = Msg<keygen::ProtocolMessage>;
 type SignOfflineMessage = Msg<sign::OfflineProtocolMessage>;
 type PartialSignatureMessage = Msg<PartialSignature>;
+type JoinMessageMsg = Msg<JoinMessage>;
+type RefreshMessageMsg = Msg<RefreshMessage>;
 
 #[cfg(feature = "light-node")]
 use skw_mpc_payload::AuthHeader;
@@ -42,6 +44,13 @@ pub struct JobManager<'node> {
 
     sign_fianlize_partial_signature_incoming_channel: HashMap<CryptoHash, mpsc::Sender<Result<Payload<PartialSignatureMessage>, std::io::Error>>>,
     sign_fianlize_partial_signature_outgoing_sender: mpsc::UnboundedSender<Payload<PartialSignatureMessage>>,
+
+    // Protocol IO For KeyRefresh
+    key_refresh_join_message_incoming_channel: HashMap<CryptoHash, mpsc::Sender<Result<Payload<JoinMessageMsg>, std::io::Error>>>,
+    key_refresh_join_message_outgoing_sender: mpsc::UnboundedSender<Payload<JoinMessageMsg>>,
+
+    key_refresh_refresh_message_incoming_channel: HashMap<CryptoHash, mpsc::Sender<Result<Payload<RefreshMessageMsg>, std::io::Error>>>,
+    key_refresh_refresh_message_outgoing_sender: mpsc::UnboundedSender<Payload<RefreshMessageMsg>>,
 }
 
 impl<'node> JobManager<'node> {
@@ -50,8 +59,12 @@ impl<'node> JobManager<'node> {
         client: &'node mut MpcSwarmClient,
 
         keygen_outgoing_sender: mpsc::UnboundedSender<Payload<KeyGenMessage>>,
+        
         sign_offline_outgoing_sender: mpsc::UnboundedSender<Payload<SignOfflineMessage>>,
         sign_fianlize_partial_signature_outgoing_sender: mpsc::UnboundedSender<Payload<PartialSignatureMessage>>,
+
+        key_refresh_join_message_outgoing_sender: mpsc::UnboundedSender<Payload<JoinMessageMsg>>,
+        key_refresh_refresh_message_outgoing_sender: mpsc::UnboundedSender<Payload<RefreshMessageMsg>>,
     ) -> Self {
         Self {
             local_peer_id,
@@ -65,6 +78,12 @@ impl<'node> JobManager<'node> {
             sign_offline_outgoing_sender,
             sign_fianlize_partial_signature_incoming_channel: Default::default(),
             sign_fianlize_partial_signature_outgoing_sender,
+            
+            key_refresh_join_message_incoming_channel: Default::default(),
+            key_refresh_join_message_outgoing_sender,
+
+            key_refresh_refresh_message_incoming_channel: Default::default(),
+            key_refresh_refresh_message_outgoing_sender,
         }
     }
 
@@ -183,7 +202,6 @@ impl<'node> JobManager<'node> {
             
             let mut peers_index = Vec::<u16>::new();
 
-            // println!("{:?} {:?} {:?}", keygen_peers, local_peer_id, new_header.peers);
             for current_peer in new_header.peers.iter() {
                 let peer_index = keygen_peers.iter()
                     .position(|p| p.0.clone() == current_peer.0)
@@ -275,13 +293,187 @@ impl<'node> JobManager<'node> {
         });
     }
 
+
+    pub async fn key_refresh_accept_new_job(&mut self, 
+        new_header: PayloadHeader,
+        maybe_local_key: Option<LocalKey<Secp256k1>>,
+
+        result_sender: oneshot::Sender<Result<ClientOutcome, MpcNodeError>>,
+    ) {
+        let job_id = new_header.clone().payload_id;
+        let local_peer_id = self.local_peer_id.clone();
+
+        let (incoming_join_msg_sender, incoming_join_msg_receiver) = mpsc::channel(2);
+        let (incoming_refresh_msg_sender, incoming_refresh_msg_receiver) = mpsc::channel(2);
+
+        let joing_msg_outgoing = self.key_refresh_join_message_outgoing_sender.clone();
+        let refresh_msg_outgoing = self.key_refresh_refresh_message_outgoing_sender.clone();
+
+        self.key_refresh_join_message_incoming_channel.insert(job_id, incoming_join_msg_sender.clone());
+        self.key_refresh_refresh_message_incoming_channel.insert(job_id, incoming_refresh_msg_sender.clone());
+
+        // spin up the thread to handle these tasks
+        async_executor(async move {
+            let local_index: u16 = new_header.peers.iter()
+                .position(|p| p.0.clone() == local_peer_id)
+                .unwrap()
+                .saturating_add(1)
+                .try_into().unwrap();
+
+            match maybe_local_key {
+                Some(mut local_key) => {
+                    // we are gonna rotate our key
+
+                    // 0. collect joinMessage 
+                    match incoming_join_msg_receiver
+                        // For now - only one party is gonna issue the join message
+                        .take(1)
+                        .try_collect::<Vec<Payload<JoinMessageMsg>>>()
+                        .await
+                    {
+                        Ok(payload_join_msgs) => {
+                            let join_msgs = payload_join_msgs.iter().map(|p| {
+                                p.clone().body.body
+                            })
+                            .collect::<Vec<JoinMessage>>();
+
+                            match RefreshMessage::replace(&join_msgs, &mut local_key) {
+                                // 1. build refresh message 
+                                Ok((refresh_msg, decryption_key)) => {
+                                    // 2. broadcast refreshMessage
+                                    refresh_msg_outgoing
+                                        .unbounded_send(Payload {
+                                            payload_header: new_header.clone(),
+                                            body: Msg {
+                                                sender: local_index, receiver: None,
+                                                body: refresh_msg
+                                            }
+                                        })
+                                        .expect("refresh_msg_outgoing channel should not be dropped");
+
+                                    // 3. collect RefreshMessage
+                                    match incoming_refresh_msg_receiver
+                                        .take(new_header.clone().peers.len() - 1)
+                                        .try_collect::<Vec<Payload<RefreshMessageMsg>>>()
+                                        .await {
+
+                                        Ok(payload_refresh_msgs) => {
+                                            let refresh_msgs = payload_refresh_msgs.iter().map(|p| {
+                                                p.clone().body.body
+                                            })
+                                            .collect::<Vec<RefreshMessage>>();
+
+                                            match RefreshMessage::collect(
+                                                &refresh_msgs,
+                                                &mut local_key,
+                                                decryption_key,
+                                                &join_msgs,
+                                            ) {
+
+                                                Ok(_) => result_sender
+                                                    .send(Ok(ClientOutcome::KeyRefresh { 
+                                                        peer_id: local_peer_id, 
+                                                        payload_id: new_header.payload_id, 
+                                                        new_key: encode_key(&local_key) 
+                                                    }))
+                                                    .expect("result_receiver not to be dropped"),
+                                                Err(e) => result_sender
+                                                    .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                                                    .expect("result_receiver not to be dropped")
+                                            }   
+                                        },
+
+                                        Err(e) => result_sender
+                                            .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                                            .expect("result_receiver not to be dropped")
+                                    }
+
+                                },
+                                Err(e) => result_sender
+                                    .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                                    .expect("result_receiver not to be dropped")
+                            }
+                        },
+                        Err(e) => result_sender
+                            .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                            .expect("result_receiver not to be dropped")
+                    }
+
+                    // return the new localKey
+
+                },
+
+                None => {
+                    // we are initiating the rotation request 
+                    
+                    // 1. build joinMsg 
+                    let (join_message, dk) = JoinMessage::distribute(local_index as u16);
+
+                    // 2. Broadcast joinMsg 
+                    joing_msg_outgoing
+                        .unbounded_send(Payload { 
+                            payload_header: new_header.clone(), body:  Msg {
+                                sender: local_index,
+                                receiver: None,
+                                body: join_message.clone()
+                            }
+                        })
+                        .expect("joing_msg_outgoing channel should not be dropped");
+
+                    // 3. collect refreshMessage
+                    match incoming_refresh_msg_receiver
+                        .take(new_header.clone().peers.len() - 1)
+                        .try_collect::<Vec<Payload<RefreshMessageMsg>>>()
+                        .await {
+                            Ok(payload_refresh_msg) => {
+                                let refresh_msgs = payload_refresh_msg.iter().map(|p| {
+                                    p.clone().body.body
+                                })
+                                .collect::<Vec<RefreshMessage>>();
+
+                                let t = new_header.clone().t;
+                                let n = new_header.clone().n;
+
+                                // 4. generate & return the new local key
+                                match join_message.clone().collect(
+                                    &refresh_msgs, 
+                                    dk, 
+                                    &[join_message.clone()], 
+                                    t, n
+                                ) {
+                                    Ok(k) => result_sender.send(Ok(ClientOutcome::KeyRefresh { 
+                                            peer_id: local_peer_id, 
+                                            payload_id: new_header.clone().payload_id, 
+                                            new_key: encode_key(&k)
+                                        }))
+                                        .expect("result_receiver not to be dropped"),
+                                    Err(e) => result_sender
+                                        .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                                        .expect("result_receiver not to be dropped")
+                                }
+                            },
+                            Err(e) => result_sender
+                                .send(Err(MpcNodeError::MpcProtocolError(MpcProtocolError::KeyRefreshError(e.to_string()))))
+                                .expect("result_receiver not to be dropped")
+                        }
+                }
+            }
+        });
+    }
+
     pub async fn handle_incoming(&mut self,
         raw_payload: &[u8],
     ) -> Result<(), MpcNodeError> {
         // Note: currently - we try to guess the type of the payload ... there might be another way
         let maybe_payload_keygen: Result<Payload<KeyGenMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
+        
+        // signing related
         let maybe_payload_sign_offline: Result<Payload<SignOfflineMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
         let maybe_payload_partial_sig: Result<Payload<PartialSignatureMessage>, MpcNodeError> = decode_payload(raw_payload.clone());
+
+        // key refresh related
+        let maybe_payload_join_msg: Result<Payload<JoinMessageMsg>, MpcNodeError> = decode_payload(raw_payload.clone());
+        let maybe_payload_refresh_msg: Result<Payload<RefreshMessageMsg>, MpcNodeError> = decode_payload(raw_payload.clone());
 
         if maybe_payload_keygen.is_ok() {
             let payload = maybe_payload_keygen.unwrap();
@@ -322,7 +514,33 @@ impl<'node> JobManager<'node> {
                     panic!("unknown job");
                 }
             }
-        } else {
+        } else if maybe_payload_join_msg.is_ok() {
+            let payload = maybe_payload_join_msg.unwrap();
+            let job_id = &payload.payload_header.payload_id;
+            let channel = self.key_refresh_join_message_incoming_channel.get_mut(job_id);
+            match channel {
+                Some(pipe) => {
+                    pipe.try_send(Ok(payload))
+                        .expect("protocol_incoming_channels should not be dropped");
+                },
+                None => {
+                    panic!("unknown job");
+                }
+            }
+        } else if maybe_payload_refresh_msg.is_ok() {
+            let payload = maybe_payload_refresh_msg.unwrap();
+            let job_id = &payload.payload_header.payload_id;
+            let channel = self.key_refresh_refresh_message_incoming_channel.get_mut(job_id);
+            match channel {
+                Some(pipe) => {
+                    pipe.try_send(Ok(payload))
+                        .expect("protocol_incoming_channels should not be dropped");
+                },
+                None => {
+                    panic!("unknown job");
+                }
+            }
+        }else {
             return Err(MpcNodeError::NodeError(NodeError::InputUnknown));
         }
 

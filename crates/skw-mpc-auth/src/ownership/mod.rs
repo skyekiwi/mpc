@@ -29,8 +29,13 @@ pub trait ProofOfOwnership {
     type Proof: ProofSystem;
     type OwnershipProof: SelfProveableSystem;
 
+    fn get_credential_hash(config: &Self::Config, credential: &Self::Credential) -> Result<
+        CryptoHash, 
+        OwnershipProofError<Self::Proof, Self::OwnershipProof>
+    >;
+
     fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
-        (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
+        <Self::Proof as ProofSystem>::Verifier,
         OwnershipProofError<Self::Proof, Self::OwnershipProof>
     >
         where 
@@ -38,7 +43,7 @@ pub trait ProofOfOwnership {
             <Self::Proof as ProofSystem>::Verifier: Serialize + DeserializeOwned;
 
     fn issue_proof(config: &Self::Config,
-            credential_hash: CryptoHash,
+            credential: &Self::Credential,
             proof: &<Self::Proof as ProofSystem>::Proof, 
             verifier: &<Self::Proof as ProofSystem>::Verifier
     ) -> Result<

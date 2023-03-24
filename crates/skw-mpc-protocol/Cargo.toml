@@ -35,7 +35,6 @@ zeroize = { version = "1", default-features = false }
 
 skw-crypto-curv = { path = "../../crypto/skw-crypto-curv", default-features = false, features = ["secp256k1", "verifiable_ss"] }
 skw-crypto-paillier = { path = "../../crypto/skw-crypto-paillier" }
-skw-crypto-centipede = { path = "../../crypto/skw-crypto-centipede" }
 skw-crypto-zk-paillier = { path = "../../crypto/skw-crypto-zk-paillier" }
 
 thiserror = { version = "1.0.23", default-features = false }

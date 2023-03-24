@@ -3,20 +3,21 @@ use std::fmt::Debug;
 use skw_mpc_auth::{SelfProveableSystem, Ed25519SelfProveableSystem, Ed25519Proof};
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, Deserialize};
-use crate::types::{CryptoHash, SecertKey};
+use crate::types::{CryptoHash};
 use crate::env::EnvironmentVar;
 
-// TODO: a const for well-known pub key of auth provider
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthHeader {
-    proof: Ed25519Proof,
+    primary: Ed25519Proof,
+    secondary: Ed25519Proof,
 }
 
 impl AuthHeader {
     pub fn new(
-        proof: Ed25519Proof
+        primary: Ed25519Proof,
+        secondary: Ed25519Proof,
     ) -> Self {
-        Self { proof }
+        Self { primary, secondary }
     }
 
     pub fn validate(&self) -> bool {
@@ -24,7 +25,10 @@ impl AuthHeader {
 
         Ed25519SelfProveableSystem::verify_proof(
             &verifier_config.into(), 
-            &self.proof
+            &self.primary
+        ).is_ok() && Ed25519SelfProveableSystem::verify_proof(
+            &verifier_config.into(), 
+            &self.secondary
         ).is_ok()
     }
 }
@@ -45,10 +49,10 @@ pub enum  PayloadType {
     // with an option of the old keys
     // None -> generate a fresh key
     // Some(key) -> inject the old key to the mpc protocol
-    KeyGen(Option<SecertKey>),
+    KeyGen,
     
     // instruct all nodes to refresh keys
-    KeyRefresh,
+    KeyRefresh { keygen_id: CryptoHash },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,7 +93,7 @@ impl Default for PayloadHeader {
         ];
         Self {
             payload_id: [0u8; 32],
-            payload_type: PayloadType::KeyGen(None),
+            payload_type: PayloadType::KeyGen,
             peers: peers.clone(),
             sender: peers[0].0,
 
@@ -122,16 +126,16 @@ mod test {
     #[test]
     fn serde_auth_header() {
 
-        let proof = Ed25519Proof::default();
-        let header = AuthHeader::new( proof );
+        let proof1 = Ed25519Proof::default();
+        let proof2 = Ed25519Proof::default();
+        let header = AuthHeader::new( proof1, proof2 );
 
-        println!("{:?}", header);
         let encoded = serde_json::to_string(&header).unwrap();
-        println!("{:?}", encoded);
 
-        let encoded = 
-        "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
-        "{\"proof\":{\"payload\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"signature\":\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}";
+        // let encoded = 
+        // "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
+        
+        // "{\"proof\":{\"payload\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"signature\":\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}";
         // "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
         
         let restructred: AuthHeader = serde_json::from_str(&encoded).unwrap();

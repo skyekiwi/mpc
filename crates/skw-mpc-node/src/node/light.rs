@@ -22,7 +22,7 @@ async fn assign_job(
     job_manager: &mut JobManager<'_>
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
-        PayloadType::KeyGen(_maybe_existing_key) => {
+        PayloadType::KeyGen => {
             job_manager.keygen_accept_new_job( payload_header.clone(), result_sender );
         },
         PayloadType::SignOffline { message, keygen_peers, .. } => {
@@ -35,7 +35,13 @@ async fn assign_job(
                 keygen_peers, message, result_sender
             ).await;
         },
-        PayloadType::KeyRefresh => { unimplemented!() },
+        PayloadType::KeyRefresh { .. } => { 
+            job_manager.key_refresh_accept_new_job(
+                payload_header.clone(), 
+                None,
+                result_sender
+            ).await;
+        },
         PayloadType::SignFinalize => { /* nop */ }
     }
     Ok(())
@@ -92,10 +98,15 @@ pub async fn light_node_event_loop(
                     let (sign_offline_outgoing_sender, mut sign_offline_outgoing_receiver) = mpsc::unbounded();
                     let (sign_fianlize_partial_signature_outgoing_sender, mut sign_fianlize_partial_signature_outgoing_receiver) = mpsc::unbounded();
 
+                    let (key_refresh_join_message_outgoing_sender, mut key_refresh_join_message_outgoing_receiver) = mpsc::unbounded();
+                    let (key_refresh_refresh_message_outgoing_sender, mut key_refresh_refresh_message_outgoing_receiver) = mpsc::unbounded();
+
                     let mut job_manager = JobManager::new(
                         local_peer_id, &mut swarm_client,
                         keygen_outgoing_sender, sign_offline_outgoing_sender,
                         sign_fianlize_partial_signature_outgoing_sender,
+                        key_refresh_join_message_outgoing_sender,
+                        key_refresh_refresh_message_outgoing_sender,
                     );
 
                     loop {
@@ -150,7 +161,25 @@ pub async fn light_node_event_loop(
                                         .send(Err(e)).await
                                         .expect("bootstrapping result sender not to be dropped")
                                 }
-                            }
+                            },
+
+                            payload = key_refresh_join_message_outgoing_receiver.select_next_some() => {
+                                match job_manager.handle_outgoing(payload).await {
+                                    Ok(_) => {},
+                                    Err(e) => result_sender_inside
+                                        .send(Err(e)).await
+                                        .expect("bootstrapping result sender not to be dropped")
+                                }
+                            },
+
+                            payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => {
+                                match job_manager.handle_outgoing(payload).await {
+                                    Ok(_) => {},
+                                    Err(e) => result_sender_inside
+                                        .send(Err(e)).await
+                                        .expect("bootstrapping result sender not to be dropped")
+                                }
+                            },
 
                             raw_payload = swarm_message_receiver.select_next_some() => {
                                 match job_manager.handle_incoming(&raw_payload).await {

@@ -25,7 +25,6 @@ pub async fn oauth_auth_validate(mut req: Request<ServerState>) -> tide::Result<
     let env = EnvironmentVar::load();
 
     let credential = OAuthCredential::new(provider, email);
-    // TODO: replace with real secret and signing key
     let config = OAuthTokenProofOfOwnershipConfig::new(env.client_oauth_secret, env.ownership_prover_key);
     let (verifier, credential_hash) = OAuthTokenProofOfOwnership::generate_challenge(&config, &credential)
         .map_err(|e| tide::Error::from_str(500, format!("OAuthProofOfOwnership Error {:?}", e)) )?;

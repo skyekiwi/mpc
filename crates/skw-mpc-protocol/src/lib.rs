@@ -21,6 +21,8 @@
 use serde::{Serialize, Deserialize};
 
 pub mod gg20;
+pub mod key_refresh;
+
 pub mod utilities;
 #[derive(Copy, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub enum Error {
