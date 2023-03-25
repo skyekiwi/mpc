@@ -33,7 +33,7 @@ wasm-bindgen-futures = { version = "0.4.34", optional = true }
 getrandom = { version = "0.2", default-features = false, optional = true}
 
 [features]
-default = ["light-node", "tcp-ws-transport"]
+default = ["full-node", "tcp-ws-transport"]
 wasm-transport = ["wasm-bindgen-futures", "libp2p/wasm-ext", "libp2p/wasm-bindgen", "getrandom/js", "libp2p/wasm-ext-websocket"]
 tcp-ws-transport = ["libp2p/tcp", "libp2p/tokio", "tokio/rt-multi-thread", "libp2p/websocket", "rcgen", "libp2p/dns"]
 

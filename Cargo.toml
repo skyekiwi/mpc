@@ -1,7 +1,7 @@
 [workspace]
 members = [
     'crates/skw-mpc-auth',
-    # 'crates/skw-mpc-client',
+    'crates/skw-mpc-client',
     'crates/skw-mpc-node',
     'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
@@ -13,9 +13,9 @@ members = [
     'crypto/skw-crypto-paillier',
     'crypto/skw-crypto-zk-paillier',
 
-    # 'bin/skw-auth-service',
-    # 'bin/skw-mpc-client-bin',
-    # 'bin/skw-mpc-node-bin',
+    'bin/skw-auth-service',
+    'bin/skw-mpc-client-bin',
+    'bin/skw-mpc-node-bin',
 ]
 
 exclude = []

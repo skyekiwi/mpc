@@ -25,7 +25,7 @@ async fn main() {
     .bootstrap_node(
         None,
         format!("/ip4/{}/tcp/2622/ws", LISTEN_ADDR),
-        "mpc-storage-db-12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5".to_string()
+        "mpc-storage-db-light-node".to_string() // no db will actually be initialized
     ).await;
 
     async_executor(async move {

@@ -27,13 +27,15 @@ pub async fn ga_auth_init(req: Request<ServerState>) -> tide::Result<GAAuthInitR
 
     // generate a random material base
     let random_material: [u8; 32] = rand::random();
-    let (verifier, credential_hash) = GATokenProofOfOwnership::generate_challenge(&config, &random_material)
+    let verifier = GATokenProofOfOwnership::generate_challenge(&config, &random_material)
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
 
+    let credential_hash = GATokenProofOfOwnership::get_credential_hash(&config, &random_material)
+        .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
 
     server_state
         .write_to_db(
-            credential_hash.clone(),
+            credential_hash,
             serde_json::to_vec(&verifier).expect("verifier should be able to serialize to json")
         ).await
         .map_err(|e| tide::Error::from_str(500, format!("GAProofOfOwnership Error {:?}", e)) )?;
