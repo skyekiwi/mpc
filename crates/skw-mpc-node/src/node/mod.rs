@@ -48,7 +48,10 @@ macro_rules! wire_incoming_pipe {
                             .expect("protocol_incoming_channels should not be dropped");
                     },
                     None => {
-                        panic!("unknown job");
+                        log::warn!("Received Msg for Discarded Job {:?}", job_id);
+                        // pipe.try_send(Err("Job Discarded".into()))
+                        //     .expect("protocol_incoming_channels should not be dropped");
+                        // panic!("unknown job");
                     }
                 }
 

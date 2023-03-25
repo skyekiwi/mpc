@@ -1,14 +1,18 @@
 use std::fmt::Debug;
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, Deserialize};
-use crate::types::{CryptoHash};
+use serde_hex::{SerHex, Strict};
 
+use crate::types::{CryptoHash};
 /// message header between nodes
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum  PayloadType {
     
     // with the hash of the message to be signed. 
-    SignOffline { message: CryptoHash },
+    SignOffline {
+        #[serde(with = "SerHex::<Strict>")]
+        message: CryptoHash 
+    },
 
     SignFinalize,
 
@@ -23,6 +27,7 @@ pub enum  PayloadType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PayloadHeader {
+    #[serde(with = "SerHex::<Strict>")]
     pub payload_id: CryptoHash,
     pub payload_type: PayloadType,
 

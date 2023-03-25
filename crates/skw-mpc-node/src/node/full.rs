@@ -9,7 +9,7 @@ use skw_mpc_storage::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};
 
 use crate::{
     async_executor,
-    error::MpcNodeError, 
+    error::{MpcNodeError, NodeError}, 
     swarm::{ new_full_swarm_node }, 
     serde_support::{decode_key}, 
     node::client_request::ClientRequest,
@@ -47,7 +47,13 @@ async fn assign_job(
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
         PayloadType::KeyGen => {
-            job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
+            let maybe_local_key = get_local_key(db_in_channel, key_shard_id).await;
+            if maybe_local_key.is_ok() {
+                result_sender.send(Err(MpcNodeError::NodeError(NodeError::LocalKeyExists)))
+                    .expect("request result receiver not to be dropped");
+            } else {
+                job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
+            }
         },
         PayloadType::SignOffline { message }=> {
             job_manager.sign_accept_new_job(
@@ -124,6 +130,8 @@ pub async fn full_node_event_loop(
                     let (key_refresh_join_message_outgoing_sender, mut key_refresh_join_message_outgoing_receiver) = mpsc::unbounded();
                     let (key_refresh_refresh_message_outgoing_sender, mut key_refresh_refresh_message_outgoing_receiver) = mpsc::unbounded();
 
+                    // let (job_processing_error_sender, mut job_processing_error_receiver) = mpsc::unbounded();
+
                     let mut job_manager = JobManager::new(
                         local_peer_id, &mut swarm_client,
                         keygen_outgoing_sender, sign_offline_outgoing_sender,
@@ -142,8 +150,10 @@ pub async fn full_node_event_loop(
                                 // Just in case - we filter out request address to ourselves
                                 if payload_header.sender != local_peer_id {
                                     let (inner_result_sender, inner_result_receiver) = oneshot::channel();
+                                    interal_results.push(inner_result_receiver);
+
                                     match assign_job(key_shard_id, payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
-                                        Ok(_) => { interal_results.push(inner_result_receiver); }
+                                        Ok(_) => {  }
                                         Err(e) => { 
                                             log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 
                                             result_sender_inside
@@ -173,7 +183,7 @@ pub async fn full_node_event_loop(
                                     Ok(outcome) => {
                                         match outcome {
                                             ClientOutcome::KeyGen { local_key, key_shard_id, .. } => {
-                                                println!("Writing Key {:?}", decode_key(&local_key));
+                                                log::info!("Writing Key {:?}", key_shard_id);
 
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
@@ -200,7 +210,7 @@ pub async fn full_node_event_loop(
                                             },
                                             ClientOutcome::KeyRefresh { new_key, key_shard_id, .. } => {
 
-                                                println!("Writing New Key {:?}", decode_key(&new_key));
+                                                log::info!("Updating Key {:?}", key_shard_id);
 
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
@@ -223,7 +233,10 @@ pub async fn full_node_event_loop(
                                             },
                                         };
                                     },
-                                    Err(e) => { log::error!("Internal result error {:?}", e); }
+                                    Err(e) => { 
+                                        // TODO: populated the MpcNodeErr to light client
+                                        log::error!("Internal result error {:?}", e); 
+                                    }
                                 }
                             },
 

@@ -6,7 +6,7 @@ members = [
     'crates/skw-mpc-payload',
     'crates/skw-mpc-protocol',
     'crates/skw-mpc-storage',
-    # 'crates/skw-mpc-wasm',
+    'crates/skw-mpc-wasm',
     'crates/skw-round-based',
 
     'crypto/skw-crypto-curv',

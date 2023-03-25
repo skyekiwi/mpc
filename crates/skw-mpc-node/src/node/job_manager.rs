@@ -26,6 +26,8 @@ type PartialSignatureMessage = Msg<PartialSignature>;
 type JoinMessageMsg = Msg<JoinMessage>;
 type RefreshMessageMsg = Msg<RefreshMessage>;
 
+type ErrorMessage = Msg<MpcNodeError>;
+
 #[cfg(feature = "light-node")]
 use skw_mpc_payload::AuthHeader;
 
@@ -332,8 +334,6 @@ impl<'node> JobManager<'node> {
                             })
                             .collect::<Vec<JoinMessage>>();
 
-                            println!("Join Msgs {:?}", join_msgs);
-
                             match RefreshMessage::replace(&join_msgs, &mut local_key) {
                                 // 1. build refresh message 
                                 Ok((refresh_msg, decryption_key)) => {
@@ -347,8 +347,6 @@ impl<'node> JobManager<'node> {
                                             }
                                         })
                                         .expect("refresh_msg_outgoing channel should not be dropped");
-
-                                    println!("Refresh Msg Broadcaste");
 
                                     // 3. collect RefreshMessage
                                     match incoming_refresh_msg_receiver
@@ -365,7 +363,6 @@ impl<'node> JobManager<'node> {
 
                                             // push the refresh msg of ourselves
                                             refresh_msgs.push(refresh_msg);
-                                            println!("Step 3 complete {:?}", refresh_msgs);
 
                                             match RefreshMessage::collect(
                                                 &refresh_msgs,
@@ -516,8 +513,6 @@ impl<'node> JobManager<'node> {
             },
             // this is a broadcast message
             None => {
-                println!("{:?}", payload);
-
                 for peer in payload.clone().payload_header.peers {
                     if peer.0.to_string() != self.local_peer_id.to_string() {
                         self.client
@@ -543,5 +538,4 @@ impl<'node> JobManager<'node> {
     
         Ok(())
     }
-
 }
