@@ -22,7 +22,7 @@ impl AuthHeader {
     }
 
     pub fn validate(&self) -> bool {
-        let verifier_config = EnvironmentVar::load().usage_verify_key;
+        let verifier_config = EnvironmentVar::load().ownership_verify_key;
 
         // basic verification
         let primary_verification = Ed25519SelfProveableSystem::verify_proof(
@@ -52,7 +52,7 @@ impl AuthHeader {
 
     /// For testing only
     pub fn test_auth_header() -> Self {
-        let prover_key = TestEnvironmentVar::load().usage_prover_key;
+        let prover_key = TestEnvironmentVar::load().ownership_prover_key;
 
         let primary = Ed25519SelfProveableSystem::generate_proof(
             &prover_key.into(), [0u8; 32]

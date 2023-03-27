@@ -78,6 +78,8 @@ async fn main() {
         t: 2, n: 3
     };
 
+    println!("KeyGEN {:?}", serde_json::to_string(&AuthHeader::test_auth_header()));
+
     let ( _, mut client, event_loop, _) = new_swarm_node( None );
     async_executor(event_loop.run());
 

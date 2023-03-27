@@ -11,7 +11,7 @@ use skw_mpc_node::{
     node::{NodeClient, light_node_event_loop},
 };
 
-const LISTEN_ADDR: &str = "0.0.0.0";
+const LISTEN_ADDR: &str = "100.104.199.31";
 
 #[tokio::main]
 async fn main() {

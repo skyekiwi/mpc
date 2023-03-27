@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnvironmentVar {
     pub ownership_prover_key: [u8; 32],
-    pub usage_cert_key: [u8; 32],
+    // pub usage_cert_key: [u8; 32],
     pub client_oauth_secret: String,
 }
 
@@ -17,20 +17,20 @@ impl EnvironmentVar {
             .try_into()
             .expect("valid length");
 
-        let usage_cert_key = hex::decode(
-            dotenv::var("USAGE_CERT_KEY")
-                .expect("USAGE_CERT_KEY in env")
-            )
-            .expect("expect valid hex")
-            .try_into()
-            .expect("valid length");
+        // let usage_cert_key = hex::decode(
+        //     dotenv::var("USAGE_CERT_KEY")
+        //         .expect("USAGE_CERT_KEY in env")
+        //     )
+        //     .expect("expect valid hex")
+        //     .try_into()
+        //     .expect("valid length");
 
         dotenv::from_path("./.env.c").expect(".env.c to exist");
         let client_oauth_secret = dotenv::var("CLIENT_OAUTH_SECRET")
             .expect("CLIENT_OAUTH_SECRET in env");
         Self {
             ownership_prover_key,
-            usage_cert_key, client_oauth_secret
+            client_oauth_secret
         }
     }
 }
