@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnvironmentVar {
     pub ownership_prover_key: [u8; 32],
     pub usage_cert_key: [u8; 32],

@@ -2,7 +2,7 @@ use skw_auth_service::{
 	ServerState,
 	// routes::email::{email_auth_init, email_auth_validate},
 	// routes::ga::{ga_auth_init, ga_auth_validate},
-	routes::oauth::oauth_auth_validate,
+	routes::oauth::{oauth_auth_validate, oauth_auth_preimage},
 	routes::misc::peer_ids, shutdown_db,
 	// routes::usage::{usage_link, usage_validate}, shutdown_db
 };
@@ -19,7 +19,7 @@ async fn main() {
 
 	// --- Run level DB server ---
 	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
-        format!("email-auth-code-storage"), false
+        format!("oauth-preimage-storage"), false
     );
 	run_db_server(storage_config);
 	log::info!("Level DB server started.");
@@ -55,6 +55,7 @@ async fn main() {
 	// app.at("/auth/ga/validate").post(ga_auth_validate);
 
 	app.at("/auth/oauth/validate").post(oauth_auth_validate);
+	app.at("/auth/oauth/preimage").post(oauth_auth_preimage);
 
 	// app.at("/usage/link").post(usage_link);
 	// app.at("/usage/validate").post(usage_validate);
