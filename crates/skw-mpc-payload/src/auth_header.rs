@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use blake2::{Blake2s256, Digest};
 use skw_mpc_auth::{SelfProveableSystem, Ed25519SelfProveableSystem, Ed25519Proof};
 use serde::{Serialize, Deserialize};
 use crate::types::{CryptoHash};
@@ -47,7 +48,10 @@ impl AuthHeader {
     }
 
     pub fn key_shard_id(&self) -> CryptoHash {
-        self.primary.payload().clone()
+        let mut hasher = Blake2s256::new();
+        hasher.update(self.primary.payload());
+        hasher.update(self.secondary.payload());
+        hasher.finalize().into()
     }
 
     /// For testing only
