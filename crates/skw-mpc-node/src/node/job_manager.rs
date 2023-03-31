@@ -26,8 +26,6 @@ type PartialSignatureMessage = Msg<PartialSignature>;
 type JoinMessageMsg = Msg<JoinMessage>;
 type RefreshMessageMsg = Msg<RefreshMessage>;
 
-type ErrorMessage = Msg<MpcNodeError>;
-
 #[cfg(feature = "light-node")]
 use skw_mpc_payload::AuthHeader;
 

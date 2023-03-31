@@ -6,7 +6,7 @@ use skw_mpc_node::{
     async_executor
 };
 
-const LISTEN_ADDR: &str = "100.104.199.31";
+const LISTEN_ADDR: &str = "127.0.0.1";
 
 #[tokio::main]
 async fn main() {

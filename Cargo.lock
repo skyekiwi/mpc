@@ -5045,17 +5045,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "skw-mpc-node-bin"
-version = "0.1.7"
-dependencies = [
- "futures",
- "log",
- "pretty_env_logger",
- "skw-mpc-node",
- "tokio",
-]
-
-[[package]]
 name = "skw-mpc-payload"
 version = "0.1.7"
 dependencies = [

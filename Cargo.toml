@@ -15,7 +15,7 @@ members = [
 
     'bin/skw-auth-service',
     'bin/skw-mpc-client-bin',
-    'bin/skw-mpc-node-bin',
+    # 'bin/skw-mpc-node-bin',
 ]
 
 exclude = []
