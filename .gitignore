@@ -34,3 +34,6 @@ wasm-bindgen
 .env.peers
 
 .bin
+
+.env.c
+oauth-preimage-storage

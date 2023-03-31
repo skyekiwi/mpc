@@ -136,7 +136,7 @@ impl Curve for Secp256k1 {
     const CURVE_NAME: &'static str = "secp256k1";
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Secp256k1Scalar {
     #[allow(dead_code)]
     purpose: &'static str,

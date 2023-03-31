@@ -1,43 +1,17 @@
 use std::fmt::Debug;
-
-use skw_mpc_auth::{SelfProveableSystem, Ed25519SelfProveableSystem, Ed25519Proof};
 use libp2p::{PeerId, Multiaddr};
 use serde::{Serialize, Deserialize};
-use crate::types::{CryptoHash, SecertKey};
-use crate::env::EnvironmentVar;
+use serde_hex::{SerHex, Strict};
 
-// TODO: a const for well-known pub key of auth provider
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuthHeader {
-    proof: Ed25519Proof,
-}
-
-impl AuthHeader {
-    pub fn new(
-        proof: Ed25519Proof
-    ) -> Self {
-        Self { proof }
-    }
-
-    pub fn validate(&self) -> bool {
-        let verifier_config = EnvironmentVar::load().usage_verify_key;
-
-        Ed25519SelfProveableSystem::verify_proof(
-            &verifier_config.into(), 
-            &self.proof
-        ).is_ok()
-    }
-}
-
+use crate::types::{CryptoHash};
 /// message header between nodes
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum  PayloadType {
     
     // with the hash of the message to be signed. 
     SignOffline {
-        message: CryptoHash,
-        keygen_id: CryptoHash,
-        keygen_peers: Vec<(PeerId, Multiaddr)>
+        #[serde(with = "SerHex::<Strict>")]
+        message: CryptoHash 
     },
 
     SignFinalize,
@@ -45,7 +19,7 @@ pub enum  PayloadType {
     // with an option of the old keys
     // None -> generate a fresh key
     // Some(key) -> inject the old key to the mpc protocol
-    KeyGen(Option<SecertKey>),
+    KeyGen,
     
     // instruct all nodes to refresh keys
     KeyRefresh,
@@ -53,6 +27,7 @@ pub enum  PayloadType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PayloadHeader {
+    #[serde(with = "SerHex::<Strict>")]
     pub payload_id: CryptoHash,
     pub payload_type: PayloadType,
 
@@ -89,7 +64,7 @@ impl Default for PayloadHeader {
         ];
         Self {
             payload_id: [0u8; 32],
-            payload_type: PayloadType::KeyGen(None),
+            payload_type: PayloadType::KeyGen,
             peers: peers.clone(),
             sender: peers[0].0,
 
@@ -100,10 +75,6 @@ impl Default for PayloadHeader {
 
 #[cfg(test)]
 mod test {
-    use skw_mpc_auth::Ed25519Proof;
-
-    use crate::AuthHeader;
-
     use super::{PayloadHeader};
 
     #[test]
@@ -115,26 +86,6 @@ mod test {
         println!("{:?}", encoded);
 
         let restructred: PayloadHeader = bincode::deserialize(&encoded).unwrap();
-
-        println!("{:?}", restructred);
-    }
-
-    #[test]
-    fn serde_auth_header() {
-
-        let proof = Ed25519Proof::default();
-        let header = AuthHeader::new( proof );
-
-        println!("{:?}", header);
-        let encoded = serde_json::to_string(&header).unwrap();
-        println!("{:?}", encoded);
-
-        let encoded = 
-        "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
-        "{\"proof\":{\"payload\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"signature\":\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"}}";
-        // "{\"proof\":\"{\"payload\":\"7ba12a07689462486c916a03da194acd21422dcfcc6be8b101b1808d0b8b06f3\",\"signature\":\"8bcacf9a6a11c23d18c4cf93b10b094efcf3450e237fb61f29e2f4082d94c2598ca6fed6a0ea1d2afd0ead4c052cec132c3be935f64daccca0f80a3ce76ad701\"}\"}";
-        
-        let restructred: AuthHeader = serde_json::from_str(&encoded).unwrap();
 
         println!("{:?}", restructred);
     }

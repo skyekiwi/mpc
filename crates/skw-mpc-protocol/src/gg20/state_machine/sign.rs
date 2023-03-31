@@ -40,7 +40,9 @@ use crate::gg20::{
     state_machine::keygen::LocalKey
 };
 
+#[cfg(test)]
 mod fmt;
+
 mod rounds;
 
 use crate::utilities::zk_pdl_with_slack::PDLwSlackProof;
@@ -59,7 +61,7 @@ pub struct OfflineStage {
     msgs2: Option<Store<P2PMsgs<(GammaI, WI)>>>,
     msgs3: Option<Store<BroadcastMsgs<(DeltaI, TI, TIProof)>>>,
     msgs4: Option<Store<BroadcastMsgs<SignDecommitPhase1>>>,
-    msgs5: Option<Store<BroadcastMsgs<(RDash, Vec<PDLwSlackProof>)>>>,
+    msgs5: Option<Store<BroadcastMsgs<(RDash, Vec<PDLwSlackProof<Secp256k1>>)>>>,
     msgs6: Option<Store<BroadcastMsgs<(SI, HEGProof)>>>,
 
     msgs_queue: MsgQueue,
@@ -489,7 +491,7 @@ enum OfflineM {
     M2((GammaI, WI)),
     M3((DeltaI, TI, TIProof)),
     M4(SignDecommitPhase1),
-    M5((RDash, Vec<PDLwSlackProof>)),
+    M5((RDash, Vec<PDLwSlackProof<Secp256k1>>)),
     M6((SI, HEGProof)),
 }
 
@@ -516,7 +518,7 @@ make_pushable! {
     M2 (GammaI, WI),
     M3 (DeltaI, TI, TIProof),
     M4 SignDecommitPhase1,
-    M5 (RDash, Vec<PDLwSlackProof>),
+    M5 (RDash, Vec<PDLwSlackProof<Secp256k1>>),
     M6 (SI, HEGProof),
 }
 

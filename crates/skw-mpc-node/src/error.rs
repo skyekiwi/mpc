@@ -42,6 +42,8 @@ pub enum NodeError {
     InvalidOutgoingParameter,
     #[error("NodeError: local key must be provided when Signing")]
     LocalKeyMissing,
+    #[error("NodeError: an local key with this key_shard_id exists. Aborting to prevent overwriting key, use key-refresh instead")]
+    LocalKeyExists,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
@@ -50,6 +52,8 @@ pub enum MpcProtocolError {
     KeyGenError(String),
     #[error("MpcProtocolError: SignError {0}")]
     SignError(String),
+    #[error("MpcProtocolError: KeyRefreshError {0}")]
+    KeyRefreshError(String),
 }
 
 

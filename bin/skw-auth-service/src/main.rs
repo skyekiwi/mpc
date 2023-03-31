@@ -1,9 +1,10 @@
 use skw_auth_service::{
 	ServerState,
-	routes::email::{email_auth_init, email_auth_validate},
-	routes::ga::{ga_auth_init, ga_auth_validate},
-	routes::{oauth::oauth_auth_validate, misc::peer_ids},
-	routes::usage::{usage_link, usage_validate}, shutdown_db
+	// routes::email::{email_auth_init, email_auth_validate},
+	// routes::ga::{ga_auth_init, ga_auth_validate},
+	routes::oauth::{oauth_auth_validate, oauth_auth_preimage, oauth_auth_confirm},
+	routes::misc::peer_ids, shutdown_db,
+	// routes::usage::{usage_link, usage_validate}, shutdown_db
 };
 use skw_mpc_storage::{run_db_server, default_mpc_storage_opt};
 use tide::{utils::{After}, Response, StatusCode, http::headers::HeaderValue};
@@ -18,7 +19,7 @@ async fn main() {
 
 	// --- Run level DB server ---
 	let (storage_config, storage_in_sender) = default_mpc_storage_opt(
-        format!("email-auth-code-storage"), false
+        format!("oauth-preimage-storage"), false
     );
 	run_db_server(storage_config);
 	log::info!("Level DB server started.");
@@ -46,16 +47,19 @@ async fn main() {
 	}));
 
 	app.at("/info/peerid").get(peer_ids);
-    app.at("/auth/email/init").post(email_auth_init);
-	app.at("/auth/email/validate").post(email_auth_validate);
+    
+	// app.at("/auth/email/init").post(email_auth_init);
+	// app.at("/auth/email/validate").post(email_auth_validate);
 
-	app.at("/auth/ga/init").post(ga_auth_init);
-	app.at("/auth/ga/validate").post(ga_auth_validate);
+	// app.at("/auth/ga/init").post(ga_auth_init);
+	// app.at("/auth/ga/validate").post(ga_auth_validate);
 
 	app.at("/auth/oauth/validate").post(oauth_auth_validate);
+	app.at("/auth/oauth/confirm").post(oauth_auth_confirm);
+	app.at("/auth/oauth/preimage").post(oauth_auth_preimage);
 
-	app.at("/usage/link").post(usage_link);
-	app.at("/usage/validate").post(usage_validate);
+	// app.at("/usage/link").post(usage_link);
+	// app.at("/usage/validate").post(usage_validate);
 
 	log::info!("Start listening web server...");
     let _ = app.listen("0.0.0.0:8080").await;

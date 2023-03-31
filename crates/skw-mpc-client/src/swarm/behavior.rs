@@ -39,13 +39,6 @@ pub mod skw_mpc_p2p_behavior {
         },
     }
 
-    // #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    // pub enum MpcP2pResponse {
-    //     Mpc {
-    //         status: Result<(), MpcClientError>, // can be either sign or keygen output
-    //     }
-    // }
-
     // Serialized Form of raw response
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub enum MpcP2pResponse {

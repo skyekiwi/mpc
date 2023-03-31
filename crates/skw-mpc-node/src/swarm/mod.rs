@@ -72,7 +72,7 @@ fn build_swarm(local_key: identity::Keypair) -> Swarm<MpcSwarmBahavior> {
 #[cfg(feature = "full-node")]
 mod swarm_full {
     use super::*;
-    use skw_mpc_payload::{PayloadHeader};
+    use skw_mpc_payload::{PayloadHeader, CryptoHash};
 
     pub fn new_full_swarm_node(
         local_key: Option<[u8; 32]>
@@ -83,7 +83,7 @@ mod swarm_full {
         MpcSwarmEventLoop, 
     
         mpsc::Receiver< Multiaddr >,
-        mpsc::Receiver< PayloadHeader >, // new job assignment channel - receiver side
+        mpsc::Receiver< (PayloadHeader, CryptoHash) >, // new job assignment channel - receiver side
         mpsc::UnboundedReceiver< Vec<u8> >, // main message incoming channel
     
         mpsc::Sender<()>, // swarm termination

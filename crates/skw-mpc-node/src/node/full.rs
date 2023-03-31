@@ -9,11 +9,11 @@ use skw_mpc_storage::{default_mpc_storage_opt, run_db_server, DBOpIn, DBOpOut};
 
 use crate::{
     async_executor,
-    error::MpcNodeError, 
+    error::{MpcNodeError, NodeError}, 
     swarm::{ new_full_swarm_node }, 
-    serde_support::{decode_key, decode_signature}, 
+    serde_support::{decode_key}, 
     node::client_request::ClientRequest,
-    node::client_outcome::ClientOutcome,
+    node::client_outcome::ClientOutcome, wire_outgoing_pipe,
 };
 
 use super::job_manager::JobManager;
@@ -39,23 +39,38 @@ async fn get_local_key(db_in: &mut mpsc::Sender<DBOpIn>, keygen_id: CryptoHash) 
 }
 
 async fn assign_job(
+    key_shard_id: CryptoHash,
     payload_header: PayloadHeader, 
     result_sender: oneshot::Sender<Result< ClientOutcome, MpcNodeError>>,
     db_in_channel: &mut mpsc::Sender<DBOpIn>,
     job_manager: &mut JobManager<'_>
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
-        PayloadType::KeyGen(_maybe_existing_key) => {
-            job_manager.keygen_accept_new_job( payload_header.clone(), result_sender );
+        PayloadType::KeyGen => {
+            let maybe_local_key = get_local_key(db_in_channel, key_shard_id).await;
+            if maybe_local_key.is_ok() {
+                result_sender.send(Err(MpcNodeError::NodeError(NodeError::LocalKeyExists)))
+                    .expect("request result receiver not to be dropped");
+            } else {
+                job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
+            }
         },
-        PayloadType::SignOffline { message, keygen_id, keygen_peers }=> {
+        PayloadType::SignOffline { message }=> {
             job_manager.sign_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
-                get_local_key(db_in_channel, keygen_id).await?, 
-                keygen_peers, message, result_sender
+                get_local_key(db_in_channel, key_shard_id).await?, 
+                message, result_sender
             ).await;
         },
-        PayloadType::KeyRefresh => { unimplemented!(); },
+        PayloadType::KeyRefresh => { 
+            job_manager.key_refresh_accept_new_job(
+                key_shard_id,
+                payload_header.clone(), 
+                Some(get_local_key(db_in_channel, key_shard_id).await?), // on fullnode - we should always have the key
+                result_sender
+            ).await;
+        },
         PayloadType::SignFinalize => { /* nop */ }
     }
     Ok(())
@@ -112,23 +127,33 @@ pub async fn full_node_event_loop(
                     let (sign_offline_outgoing_sender, mut sign_offline_outgoing_receiver) = mpsc::unbounded();
                     let (sign_fianlize_partial_signature_outgoing_sender, mut sign_fianlize_partial_signature_outgoing_receiver) = mpsc::unbounded();
 
+                    let (key_refresh_join_message_outgoing_sender, mut key_refresh_join_message_outgoing_receiver) = mpsc::unbounded();
+                    let (key_refresh_refresh_message_outgoing_sender, mut key_refresh_refresh_message_outgoing_receiver) = mpsc::unbounded();
+
+                    // let (job_processing_error_sender, mut job_processing_error_receiver) = mpsc::unbounded();
+
                     let mut job_manager = JobManager::new(
                         local_peer_id, &mut swarm_client,
                         keygen_outgoing_sender, sign_offline_outgoing_sender,
                         sign_fianlize_partial_signature_outgoing_sender,
+                        key_refresh_join_message_outgoing_sender,
+                        key_refresh_refresh_message_outgoing_sender,
                     );
 
                     loop {
                         futures::select! {
-                            payload_header = job_assignment_receiver.select_next_some() => {
+                            (payload_header, key_shard_id) = job_assignment_receiver.select_next_some() => {
+                                log::debug!("New job assignment for credential {:?}", key_shard_id);
+
+                                // TODO: To be removed in future
                                 // For StartJob Swarm Request - sometimes the sender is not 100% correct
                                 // Just in case - we filter out request address to ourselves
-                                // TODO: To be removed in future
-                                log::debug!("New job assignment");
                                 if payload_header.sender != local_peer_id {
                                     let (inner_result_sender, inner_result_receiver) = oneshot::channel();
-                                    match assign_job(payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
-                                        Ok(_) => { interal_results.push(inner_result_receiver); }
+                                    interal_results.push(inner_result_receiver);
+
+                                    match assign_job(key_shard_id, payload_header, inner_result_sender, &mut storage_in_sender, &mut job_manager).await {
+                                        Ok(_) => {  }
                                         Err(e) => { 
                                             log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 
                                             result_sender_inside
@@ -139,31 +164,11 @@ pub async fn full_node_event_loop(
                                 }
                             },
 
-                            payload = keygen_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_offline_outgoing_receiver.select_next_some()  => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            }
-
+                            payload = keygen_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_offline_outgoing_receiver.select_next_some()  => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_join_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
                             raw_payload = swarm_message_receiver.select_next_some() => {
                                 match job_manager.handle_incoming(&raw_payload).await {
                                     Ok(_) => {},
@@ -177,10 +182,12 @@ pub async fn full_node_event_loop(
                                 match outcome.expect("internal result sender not to be dropped") {
                                     Ok(outcome) => {
                                         match outcome {
-                                            ClientOutcome::KeyGen { payload_id, local_key, .. } => {
+                                            ClientOutcome::KeyGen { local_key, key_shard_id, .. } => {
+                                                log::info!("Writing Key {:?}", key_shard_id);
+
                                                 let (db_res_sender, db_res_receiver) = oneshot::channel();
                                                 storage_in_sender.send(DBOpIn::WriteToDB { 
-                                                    key: payload_id, 
+                                                    key: key_shard_id, 
                                                     value: local_key, 
                                                     result_sender: db_res_sender
                                                 }).await.expect("DB must remain open");
@@ -197,12 +204,39 @@ pub async fn full_node_event_loop(
                                                     }
                                                 }
                                             },
-                                            ClientOutcome::Sign { peer_id, payload_id, sig } => {
-                                                log::info!("Sign Result {:?} {:?} {:?}", peer_id, payload_id, decode_signature(&sig));
-                                            }
+                                            ClientOutcome::Sign { .. } => {
+                                                // Nop for sign for fullnodes
+                                                // log::info!("Sign Result {:?} {:?} {:?} ", peer_id, payload_id, decode_signature(&sig));
+                                            },
+                                            ClientOutcome::KeyRefresh { new_key, key_shard_id, .. } => {
+
+                                                log::info!("Updating Key {:?}", key_shard_id);
+
+                                                let (db_res_sender, db_res_receiver) = oneshot::channel();
+                                                storage_in_sender.send(DBOpIn::WriteToDB { 
+                                                    key: key_shard_id, 
+                                                    value: new_key, 
+                                                    result_sender: db_res_sender
+                                                }).await.expect("DB must remain open");
+        
+                                                if let DBOpOut::WriteToDB { status } = db_res_receiver.await.expect("DB must remain open") {
+                                                    match status {
+                                                        Ok(_) => {},
+                                                        Err(e) => { 
+                                                            log::error!("Internal result write to db error {:?}", e); 
+                                                            result_sender_inside
+                                                                .send(Err(MpcNodeError::StorageError(e))).await
+                                                                .expect("bootstrapping result sender not to be dropped");
+                                                        }
+                                                    }
+                                                }
+                                            },
                                         };
                                     },
-                                    Err(e) => { log::error!("Internal result error {:?}", e); }
+                                    Err(e) => { 
+                                        // TODO: populated the MpcNodeErr to light client
+                                        log::error!("Internal result error {:?}", e); 
+                                    }
                                 }
                             },
 

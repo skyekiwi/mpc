@@ -44,16 +44,22 @@ impl ProofOfOwnership for EmailProofOfOwnership {
     type Proof = GAProofSystem;
     type OwnershipProof = Ed25519SelfProveableSystem;
 
+    fn get_credential_hash(
+        _config: &Self::Config, credential: &Self::Credential) -> Result<
+            CryptoHash, 
+            OwnershipProofError<Self::Proof, Self::OwnershipProof>
+        > {
+        let mut credential_hasher = Blake2s256::new();
+        credential_hasher.update(credential);
+        Ok(credential_hasher.finalize().into())
+    }
+
     fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
-        (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
+        <Self::Proof as ProofSystem>::Verifier,
         OwnershipProofError<Self::Proof, Self::OwnershipProof>
     > {
         // generate a random salt
         let random_salt: [u8; 32] = rand::random();
-        
-        let mut credential_hasher = Blake2s256::new();
-        credential_hasher.update(credential);
-        let credential_hash = credential_hasher.finalize();
 
         let mut random_material_hasher = Blake2s256::new();
         random_material_hasher.update(credential);
@@ -64,12 +70,12 @@ impl ProofOfOwnership for EmailProofOfOwnership {
         let verifier = Self::Proof::generate_verifier(random_material.into(), config.code_expiration_time.into())
             .map_err(|e| OwnershipProofError::ValidationError(e))?;
         
-        Ok((verifier, credential_hash.into()))
+        Ok(verifier)
     }
 
     fn issue_proof(
         config: &Self::Config, 
-        credential_hash: CryptoHash,
+        credential: &Self::Credential,
         proof: &<Self::Proof as ProofSystem>::Proof, 
         verifier: &<Self::Proof as ProofSystem>::Verifier
     ) -> Result<
@@ -78,6 +84,7 @@ impl ProofOfOwnership for EmailProofOfOwnership {
     > {
         Self::Proof::verify_proof(proof, verifier)
             .map_err(|e| OwnershipProofError::ValidationError(e))?;
+        let credential_hash = Self::get_credential_hash(config, credential)?;
 
         let proof = Self::OwnershipProof::generate_proof(
             &config.signature_secret_key.into(),
@@ -91,7 +98,7 @@ impl ProofOfOwnership for EmailProofOfOwnership {
 #[test]
 fn smoke_test() {
     let default_config = EmailProofOfOwnershipConfig::default();
-    let (verifier, credential_hash) = EmailProofOfOwnership::generate_challenge(
+    let verifier = EmailProofOfOwnership::generate_challenge(
         &default_config, 
         &"test@skye.kiwi".to_string()
     ).unwrap();
@@ -100,7 +107,7 @@ fn smoke_test() {
 
     let certification = EmailProofOfOwnership::issue_proof(
         &default_config, 
-        credential_hash, 
+        &"test@skye.kiwi".to_string(), 
         &proof, 
         &verifier
     ).unwrap();

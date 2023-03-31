@@ -1,10 +1,13 @@
 pub mod header;
 pub mod types;
+pub mod auth_header;
+
 mod env;
 use serde::{Serialize, Deserialize};
 
 // re-export
-pub use crate::header::{PayloadHeader, AuthHeader}; 
+pub use crate::header::PayloadHeader; 
+pub use crate::auth_header::AuthHeader;
 pub use crate::types::{CryptoHash, SecertKey};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

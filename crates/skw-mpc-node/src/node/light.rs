@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use futures::{channel::{oneshot, mpsc}, StreamExt, SinkExt};
 use libp2p::PeerId;
-use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader};
+use skw_mpc_payload::{header::PayloadType, PayloadHeader, AuthHeader, CryptoHash};
 
 use crate::{
     async_executor,
@@ -10,32 +10,43 @@ use crate::{
     node::client_outcome::ClientOutcome,
     error::{MpcNodeError, NodeError}, 
     swarm::{ new_light_swarm_node }, 
-    serde_support::decode_key,
+    serde_support::decode_key, 
+    
+    wire_outgoing_pipe,
 };
 
 use super::job_manager::JobManager;
 
 async fn assign_job(
+    key_shard_id: CryptoHash,
     payload_header: PayloadHeader, 
     maybe_local_key: Option<Vec<u8>>,
     result_sender: oneshot::Sender<Result< ClientOutcome, MpcNodeError>>,
     job_manager: &mut JobManager<'_>
 ) -> Result<(), MpcNodeError> {
     match payload_header.clone().payload_type {
-        PayloadType::KeyGen(_maybe_existing_key) => {
-            job_manager.keygen_accept_new_job( payload_header.clone(), result_sender );
+        PayloadType::KeyGen => {
+            job_manager.keygen_accept_new_job( key_shard_id, payload_header.clone(), result_sender );
         },
-        PayloadType::SignOffline { message, keygen_peers, .. } => {
+        PayloadType::SignOffline { message, .. } => {
             if maybe_local_key.is_none() {
                 return Err(MpcNodeError::NodeError(NodeError::LocalKeyMissing));
             }        
             job_manager.sign_accept_new_job(
+                key_shard_id,
                 payload_header.clone(), 
                 decode_key( &maybe_local_key.unwrap() )?,
-                keygen_peers, message, result_sender
+                message, result_sender
             ).await;
         },
-        PayloadType::KeyRefresh => { unimplemented!() },
+        PayloadType::KeyRefresh { .. } => { 
+            job_manager.key_refresh_accept_new_job(
+                key_shard_id,
+                payload_header.clone(), 
+                None,
+                result_sender
+            ).await;
+        },
         PayloadType::SignFinalize => { /* nop */ }
     }
     Ok(())
@@ -92,10 +103,15 @@ pub async fn light_node_event_loop(
                     let (sign_offline_outgoing_sender, mut sign_offline_outgoing_receiver) = mpsc::unbounded();
                     let (sign_fianlize_partial_signature_outgoing_sender, mut sign_fianlize_partial_signature_outgoing_receiver) = mpsc::unbounded();
 
+                    let (key_refresh_join_message_outgoing_sender, mut key_refresh_join_message_outgoing_receiver) = mpsc::unbounded();
+                    let (key_refresh_refresh_message_outgoing_sender, mut key_refresh_refresh_message_outgoing_receiver) = mpsc::unbounded();
+
                     let mut job_manager = JobManager::new(
                         local_peer_id, &mut swarm_client,
                         keygen_outgoing_sender, sign_offline_outgoing_sender,
                         sign_fianlize_partial_signature_outgoing_sender,
+                        key_refresh_join_message_outgoing_sender,
+                        key_refresh_refresh_message_outgoing_sender,
                     );
 
                     loop {
@@ -106,9 +122,12 @@ pub async fn light_node_event_loop(
                                 let maybe_local_key = request.2;
                                 let request_result_sender = request.3;
 
-                                match job_manager.init_new_job( auth_header, payload_header.clone()).await {
+                                match job_manager.init_new_job( auth_header.clone(), payload_header.clone()).await {
                                     Ok(_) => {
-                                        match assign_job(payload_header, maybe_local_key, request_result_sender, &mut job_manager).await {
+                                        match assign_job( 
+                                            auth_header.key_shard_id(), 
+                                            payload_header, maybe_local_key, request_result_sender, &mut job_manager
+                                        ).await {
                                             Ok(_) => {  } // job assignment success
                                             Err(e) => { 
                                                 log::error!("FATAL ERROR: Assigning Job Failed {:?}", e); 
@@ -127,30 +146,11 @@ pub async fn light_node_event_loop(
                                 };
                             },
 
-                            payload = keygen_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_offline_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            },
-                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => {
-                                match job_manager.handle_outgoing(payload).await {
-                                    Ok(_) => {},
-                                    Err(e) => result_sender_inside
-                                        .send(Err(e)).await
-                                        .expect("bootstrapping result sender not to be dropped")
-                                }
-                            }
+                            payload = keygen_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_offline_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = sign_fianlize_partial_signature_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_join_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
+                            payload = key_refresh_refresh_message_outgoing_receiver.select_next_some() => wire_outgoing_pipe!(payload, job_manager, result_sender_inside),
 
                             raw_payload = swarm_message_receiver.select_next_some() => {
                                 match job_manager.handle_incoming(&raw_payload).await {

@@ -21,6 +21,7 @@ impl OAuthCredential {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct OAuthTokenProofOfOwnershipConfig {
     client_side_secret: String,
     signature_secret_key: [u8; 32],
@@ -45,24 +46,31 @@ impl ProofOfOwnership for OAuthTokenProofOfOwnership {
     type Proof = JweProofSystem;
     type OwnershipProof = Ed25519SelfProveableSystem;
 
-    fn generate_challenge(config: &Self::Config, credential: &Self::Credential) -> Result< 
-        (<Self::Proof as ProofSystem>::Verifier, CryptoHash),
-        OwnershipProofError<Self::Proof, Self::OwnershipProof>
-    > { 
+    fn get_credential_hash(_config: &Self::Config, credential: &Self::Credential) -> Result<
+            CryptoHash, 
+            OwnershipProofError<Self::Proof, Self::OwnershipProof>
+        > {
         let mut credential_hasher = Blake2s256::new();
         credential_hasher.update(credential.provider.as_bytes());
         credential_hasher.update(credential.email.as_bytes());
         let credential_hash = credential_hasher.finalize();
+        
+        Ok(credential_hash.into())
+    }
 
+    fn generate_challenge(config: &Self::Config, _credential: &Self::Credential) -> Result< 
+        <Self::Proof as ProofSystem>::Verifier,
+        OwnershipProofError<Self::Proof, Self::OwnershipProof>
+    > {
         let verifier = Self::Proof::generate_verifier((), config.client_side_secret.as_str().into())
             .map_err(|e| OwnershipProofError::ValidationError(e))?;
         
-        Ok((verifier, credential_hash.into()))
+        Ok(verifier)
     }
 
     fn issue_proof(
         config: &Self::Config, 
-        credential_hash: [u8; 32],
+        credential: &Self::Credential,
         proof: &<Self::Proof as ProofSystem>::Proof, 
         verifier: &<Self::Proof as ProofSystem>::Verifier
     ) -> Result<
@@ -71,6 +79,7 @@ impl ProofOfOwnership for OAuthTokenProofOfOwnership {
     > {
         let payload = Self::Proof::verify_proof(proof, verifier)
             .map_err(|e| OwnershipProofError::ValidationError(e))?;
+        let credential_hash = Self::get_credential_hash(config, credential)?;
 
         if payload != credential_hash {
             return Err(OwnershipProofError::CredentialMismatch);
@@ -87,7 +96,7 @@ impl ProofOfOwnership for OAuthTokenProofOfOwnership {
 #[test]
 fn smoke_test() {
     let config = OAuthTokenProofOfOwnershipConfig::new("chokowallet".to_string(), [1u8; 32]);
-    let (verifier, credential_hash) = OAuthTokenProofOfOwnership::generate_challenge(
+    let verifier = OAuthTokenProofOfOwnership::generate_challenge(
         &config,
         &OAuthCredential::new("google".to_string(), "hello@skye.kiwi".to_string())
     ).unwrap();
@@ -96,7 +105,7 @@ fn smoke_test() {
 
     let certification = OAuthTokenProofOfOwnership::issue_proof(
         &config, 
-        credential_hash, 
+        &OAuthCredential::new("google".to_string(), "hello@skye.kiwi".to_string()),
         &proof, 
         &verifier
     ).unwrap();

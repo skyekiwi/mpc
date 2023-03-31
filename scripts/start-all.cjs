@@ -3,14 +3,14 @@
 
 const fs = require('fs');
 const execSync = require('./execSync.cjs');
-console.log('$ yarn pack-wasm', process.argv.slice(2).join(' '));
+console.log('$ yarn start-all', process.argv.slice(2).join(' '));
 
 function startAll() {
     execSync(`cargo build -p skw-mpc-node-bin --release`);
     execSync(`cargo build -p skw-mpc-client-bin --release`);
     execSync(`cargo build -p skw-auth-service --release`);
     
-    if (!fs.existsSync('./env.c')) {
+    if (!fs.existsSync('./.env.c')) {
       execSync(`touch .env.c`);
     }
 
