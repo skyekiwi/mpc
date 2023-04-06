@@ -45,8 +45,11 @@ pub fn run_db_server(
                     let status = db.put(&key[..], &value[..])
                         .map_err(|_| MpcStorageError::FailToWriteDB);
                     
+                    let flush_status = db.flush()
+                        .map_err(|_| MpcStorageError::FailToFlushDB);
+
                     result_sender
-                        .send(DBOpOut::WriteToDB { status })
+                        .send(DBOpOut::WriteToDB { status: status.and(flush_status) })
                         .expect("db out receiver should not been dropped")
                 },
                 DBOpIn::ReadFromDB { key, result_sender } => {
