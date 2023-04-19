@@ -1,5 +1,5 @@
 [package]
-name = "skw-mpc-storage"
+name = "skw-mpc-leveldb"
 version = "0.1.7"
 edition = "2021"
 authors = ["SkyeKiwi <hello@skye.kiwi>"]
@@ -13,12 +13,12 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"], default-features = false }
-async-std = { version = "1.12.0", features = ["attributes"] }
-thiserror = { version = "1.0.23", default-features = false }
-futures = "0.3.1"
+skw-mpc-storage = { path = "../skw-mpc-storage" }
+tokio = { version = "1.25", default-features = false, features = ["rt", "macros"] }
 
+serde = { version = "1.0", features = ["derive"], default-features = false }
 rusty-leveldb = { version = "1.0.6", default-features = false, optional = true}
+futures = "0.3.1"
 
 [features]
 default = ["leveldb-backend"]

@@ -15,4 +15,6 @@ pub enum MpcStorageError {
     FailToCloseDB,
     #[error("Storage: failed to find key in DB")]
     KeyNotInDB,
+    #[error("Storage: no payload for this type of op")]
+    NoPayload,
 }

@@ -1,0 +1,21 @@
+[package]
+name = "skw-mpc-full-swarm"
+version = "0.1.7"
+edition = "2021"
+authors = ["Song Zhou <song.zhou@skye.kiwi>"]
+license = "GPL-3.0"
+description = "Mpc pubsub implmenetation"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+skw-mpc-payload = { path = "../../crates/skw-mpc-payload" }
+skw-mpc-node = { path = "../../crates/skw-mpc-node" }
+tokio = { version = "1.25", default-features = false, features = ["rt", "macros"] }
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", ]}
+log = "0.4.17"
+futures = "0.3.1"

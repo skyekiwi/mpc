@@ -57,6 +57,32 @@ pub enum DBOpOut {
     },
 }
 
+impl DBOpOut {
+    pub fn payload(&self) -> Result<Vec<u8>, MpcStorageError> {
+        match self {
+            DBOpOut::ReadFromDB { status } => status.clone(),
+            _ => Err(MpcStorageError::NoPayload),
+        }
+    }
+
+    pub fn status(&self) -> Result<(), MpcStorageError> {
+        match self {
+            DBOpOut::WriteToDB { status } => status.clone(),
+            DBOpOut::ReadFromDB { status } => {
+                if status.is_ok() {
+                    Ok(())
+                } else {
+                    // SAFETY: this unwrap is safe because we have assure status is err
+                    Err(status.clone().err().unwrap())
+                }
+            },
+            DBOpOut::DeleteFromDB { status } => status.clone(),
+            DBOpOut::ForceFlush { status } => status.clone(),
+            DBOpOut::Shutdown { status } => status.clone(),
+        }
+    }
+}
+
 pub struct MpcStorageConfig {
     db_name_or_path: String,
     in_memory: bool,

@@ -1,20 +1,31 @@
 [workspace]
 members = [
-    'crates/skw-mpc-auth',
-    'crates/skw-mpc-client',
-    'crates/skw-mpc-node',
-    'crates/skw-mpc-payload',
-    'crates/skw-mpc-protocol',
-    'crates/skw-mpc-storage',
-    'crates/skw-mpc-wasm',
-    'crates/skw-round-based',
+    # 'crates/skw-mpc-auth',
+    # # 'crates/skw-mpc-client',
+    'src/crates/skw-mpc-node',
+    'src/full-node/skw-mpc-full-node',
+    'src/full-node/skw-mpc-full-swarm',
 
-    'crypto/skw-crypto-curv',
-    'crypto/skw-crypto-paillier',
-    'crypto/skw-crypto-zk-paillier',
+    'src/light-node/skw-mpc-light-node',
+    'src/light-node/skw-mpc-light-swarm',
 
-    'bin/skw-auth-service',
-    'bin/skw-mpc-client-bin',
+    'src/crates/skw-mpc-payload',
+
+    # 'crates/skw-mpc-payload',
+    # 'crates/skw-mpc-protocol',
+    # 'crates/skw-mpc-storage',
+    # 'crates/skw-mpc-wasm',
+    # 'crates/skw-round-based',
+
+    'src/crypto/skw-crypto-curv',
+    'src/crypto/skw-crypto-paillier',
+    'src/crypto/skw-crypto-zk-paillier',
+
+    'src/storage/skw-mpc-storage',
+    'src/storage/skw-mpc-leveldb',
+
+    # 'src/bin/skw-auth-service',
+    # 'bin/skw-mpc-client-bin',
     # 'bin/skw-mpc-node-bin',
 ]
 

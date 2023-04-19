@@ -1,8 +1,6 @@
 use futures::{channel::mpsc, StreamExt};
-use skw_mpc_node::{
-    node::{full_node_event_loop, NodeClient},
-    async_executor
-};
+use skw_mpc_full_node::{full_node_event_loop, client::NodeClient};
+use skw_mpc_node::{async_executor};
 
 #[tokio::main]
 async fn main() {
