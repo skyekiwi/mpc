@@ -1,10 +1,9 @@
 use std::{fs, io::Write};
 
 use futures::channel::mpsc;
-use skw_mpc_node::{
-    node::{full_node_event_loop, NodeClient},
-    async_executor
-};
+use skw_mpc_full_node::{full_node_event_loop, client::NodeClient};
+use skw_mpc_node::async_executor;
+
 
 const LISTEN_ADDR: &str = "127.0.0.1";
 

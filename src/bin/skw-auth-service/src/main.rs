@@ -6,7 +6,7 @@ use skw_auth_service::{
 	routes::misc::peer_ids, shutdown_db,
 	// routes::usage::{usage_link, usage_validate}, shutdown_db
 };
-use skw_mpc_storage::{run_db_server, default_mpc_storage_opt};
+use skw_mpc_leveldb::{run_db_server, default_mpc_storage_opt};
 use tide::{utils::{After}, Response, StatusCode, http::headers::HeaderValue};
 use tide::security::{CorsMiddleware, Origin};
 

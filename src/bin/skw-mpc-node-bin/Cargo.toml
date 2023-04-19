@@ -11,7 +11,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-skw-mpc-node = { path = "../../crates/skw-mpc-node", default-features = false, features = ["full-node", "tcp-ws-transport"]}
+skw-mpc-node = { path = "../../crates/skw-mpc-node" }
+skw-mpc-full-node = { path = "../../full-node/skw-mpc-full-node" }
 futures = "0.3.1"
 
 tokio = { version = "1.25", default-features = false, features = ["rt", "macros"] }

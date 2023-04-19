@@ -6,7 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-skw-mpc-storage = { path="../../crates/skw-mpc-storage", features = ["leveldb-backend"]}
+skw-mpc-storage = { path="../../storage/skw-mpc-storage" }
+skw-mpc-leveldb = { path="../../storage/skw-mpc-leveldb" }
+
 skw-mpc-auth = { path="../../crates/skw-mpc-auth" }
 
 async-std = { version = "1.6.0", features = ["attributes", "tokio1"] }

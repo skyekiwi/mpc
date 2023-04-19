@@ -1,8 +1,5 @@
 [workspace]
 members = [
-    # 'crates/skw-mpc-auth',
-    # # 'crates/skw-mpc-client',
-    'src/crates/skw-mpc-node',
     'src/full-node/skw-mpc-full-node',
     'src/full-node/skw-mpc-full-swarm',
 
@@ -10,12 +7,11 @@ members = [
     'src/light-node/skw-mpc-light-swarm',
 
     'src/crates/skw-mpc-payload',
-
-    # 'crates/skw-mpc-payload',
-    # 'crates/skw-mpc-protocol',
-    # 'crates/skw-mpc-storage',
-    # 'crates/skw-mpc-wasm',
-    # 'crates/skw-round-based',
+    'src/crates/skw-mpc-auth',
+    'src/crates/skw-mpc-payload',
+    'src/crates/skw-mpc-protocol',
+    'src/crates/skw-round-based',
+    'src/crates/skw-mpc-node',
 
     'src/crypto/skw-crypto-curv',
     'src/crypto/skw-crypto-paillier',
@@ -24,9 +20,9 @@ members = [
     'src/storage/skw-mpc-storage',
     'src/storage/skw-mpc-leveldb',
 
-    # 'src/bin/skw-auth-service',
-    # 'bin/skw-mpc-client-bin',
-    # 'bin/skw-mpc-node-bin',
+    'src/bin/skw-auth-service',
+    'src/bin/skw-mpc-node-bin',
+    'src/bin/skw-mpc-client-bin',
 ]
 
 exclude = []
