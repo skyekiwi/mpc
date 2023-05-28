@@ -32,9 +32,9 @@ function startAll() {
     // Mprocs land
 
     execSync(`mprocs \
-      "RUST_LOG=debug cargo run -p skw-mpc-node-bin --release" \
-      "RUST_LOG=debug cargo run -p skw-mpc-client-bin --release" \
-      "RUST_LOG=debug cargo run -p skw-auth-service --release"
+      "RUST_LOG=info cargo run -p skw-mpc-node-bin --release" \
+      "RUST_LOG=info cargo run -p skw-mpc-client-bin --release" \
+      "RUST_LOG=info cargo run -p skw-auth-service --release"
     `);
 }
 
