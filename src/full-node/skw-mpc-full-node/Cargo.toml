@@ -1,0 +1,48 @@
+[package]
+name = "skw-mpc-full-node"
+version = "0.1.7"
+edition = "2021"
+authors = ["Song Zhou <song.zhou@skye.kiwi>"]
+license = "GPL-3.0"
+description = "Mpc pubsub implmenetation"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+skw-mpc-full-swarm = { path = "../skw-mpc-full-swarm" }
+
+skw-crypto-curv = { path = "../../crypto/skw-crypto-curv", default-features = false}
+skw-mpc-storage = { path = "../../storage/skw-mpc-storage" }
+skw-mpc-leveldb = { path = "../../storage/skw-mpc-leveldb", optional = true}
+
+skw-mpc-node = { path = "../../crates/skw-mpc-node" }
+
+skw-mpc-protocol = { path = "../../crates/skw-mpc-protocol" }
+skw-mpc-payload = { path = "../../crates/skw-mpc-payload" }
+skw-mpc-auth = { path = "../../crates/skw-mpc-auth" }
+skw-round-based = { path = "../../crates/skw-round-based" }
+
+libp2p = { git = "https://github.com/libp2p/rust-libp2p", version = "0.51.0", features = ["serde", "request-response", "macros", "noise", "mplex", "yamux", "tokio"]}
+tokio = { version = "1.25", default-features = false, features = ["rt", "macros"] }
+
+thiserror = { version = "1.0.23", default-features = false }
+serde = { version = "1.0", features = ["derive"], default-features = false }
+futures = "0.3.1"
+serde_json = "1.0"
+log = "0.4.17"
+
+[dev-dependencies]
+pretty_env_logger = "0.4.0"
+
+[features]
+default = ["tcp-ws-transport", "skw-mpc-leveldb"]
+tcp-ws-transport = ["libp2p/tcp", "libp2p/websocket", "tokio/rt-multi-thread", "libp2p/dns",]
+
+[[example]]
+name = "node-full-node"
+path = "examples/node_full.rs"
+required-features = ["tcp-ws-transport"]

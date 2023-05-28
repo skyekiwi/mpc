@@ -1,0 +1,18 @@
+[package]
+name = "skw-mpc-storage"
+version = "0.1.7"
+edition = "2021"
+authors = ["SkyeKiwi <hello@skye.kiwi>"]
+license = "GPL-3.0"
+description = "storage abstraction for SkyeKiwi Mpc nodes"
+categories = ["asynchronous", "cryptography", "network-programming"]
+keywords = ["round-based", "mpc", "protocol"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"], default-features = false }
+thiserror = { version = "1.0.23", default-features = false }
+futures = "0.3.1"
